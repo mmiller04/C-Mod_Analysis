@@ -388,7 +388,15 @@ def Teu_2pt_model(shot,tmin,tmax, geqdsk=None, pressure_opt = 3, lambdaq_opt=1, 
             1.0,  # dummy value of ne at the sepatrix, not used for Tu_eV calculation
             lam_q_model='Brunner'
         )
-    elif lambdaq_opt==2:
+    if lambdaq_opt==2:
+        # now get 2-point model prediction
+        mod = twopoint_model.two_point_model(
+            0.69, 0.22,
+            Psol, Bp, Bt, q95, p_Pa_vol_avg,
+            1.0,  # dummy value of ne at the sepatrix, not used for Tu_eV calculation
+            lam_q_model='Eich'
+        )
+    elif lambdaq_opt==3:
         # use lambdaT calculated from TS points to get lambda_q using lambda_q = 2/7*lambda_T
         mod = twopoint_model.two_point_model(
             0.69, 0.22,
