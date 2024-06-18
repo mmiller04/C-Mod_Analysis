@@ -2990,7 +2990,7 @@ def get_fourier_spectra(time, data, n_samples, plot=False):
 
     return xf[1:N//2], 2.0/N*np.abs(yf[1:N//2])
 
-
+    
 def compare_ts_tci(shot, tmin, tmax, nl_num=4, plot=False):
 
     nl_ts1 = 1e32
@@ -3250,24 +3250,43 @@ def map_ts2tci(shot, tmin, tmax, nl_num=4):
     # just use one equilbrium point to perform the mapping - therefore, want to pass in t_min and t_max # this will likely introduce a significant 
     # error in parts of the shot that do not have the same equilbria, so only trust the resulting integrals within the t_min and t_max bounds
 
-    # maybe what's done in profiletools is a solution to this - look into it
-
+    #commented out the old method using geqdsk
+    '''
     time_efit = (tmin + tmax)/2 # just an average
 
     geqdsk = get_geqdsk_cmod(
-        shot, time_efit*1e3, gfiles_loc = '/home/millerma/lya/gfiles/')
+        shot, time_efit*1e3)
 
     rhop_ts = np.transpose(aurora.get_rhop_RZ(r_ts, z_ts, geqdsk))
     psin_ts = rhop_ts**2
-    psin_ts = np.tile(psin_ts, (n_ts,1)) # only doing this because I just have one geqdsk!
 
-    m_tci = 101
+    print('psin_ts')
+    print(psin_ts)
+
+    psin_ts = np.tile(psin_ts, (n_ts,1)) # only doing this because I just have one geqdsk!
+    '''
+
+    # New method using eqtools
+    #gets the magnetic equilibrium at every time point - note EFIT20 is the TS timebase
+    e = eqtools.CModEFIT.CModEFITTree(int(shot), tree='EFIT20')
+    r_ts = np.full(len(z_ts), r_ts) #just to make r_ts the same length as z_ts
+    psin_ts = e.rho2rho('RZ', 'psinorm', r_ts, z_ts, t=t_ts, each_t = True)
+
+
+    m_tci = 501 # Had to increase this from 101 to make the interpolation work in i, j loop coming up
     z_tci = -0.4 + 0.8*np.linspace(1,m_tci-1,m_tci)/np.float(m_tci - 1) ## What is findgen?
     r_tci = r_tci[nl_num-1] + np.zeros(m_tci)
 
+
+    #Old geqdsk method commented out below
+    '''
     rhop_tci = np.transpose(aurora.get_rhop_RZ(r_tci, z_tci, geqdsk))
     psin_tci = rhop_tci**2
     psin_tci = np.tile(psin_tci, (n_ts,1)) # only doing this because I just have one geqdsk!
+    '''
+
+    #New method using eqtools here
+    psin_tci = e.rho2rho('RZ', 'psinorm', r_tci, z_tci, t=t_ts, each_t = True)
 
 
     # perform mapping

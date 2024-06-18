@@ -73,7 +73,7 @@ var_list = ['ne_prof','ne_prof_unc','Te_prof','Te_prof_unc','pe_prof','pe_prof_u
             'area_LCFS','R_prof','rvol_prof','rhop_prof','R_raw','R_raw_sp','rvol_raw','rhop_raw',\
             'ne_R','Te_R','pe_R','ne_rvol','Te_rvol','pe_rvol','ne_rhop','Te_rhop','pe_rhop',\
             'shot','tmin','tmax','f_gw','n_m3_avg','T_eV_avg','p_Pa_avg','gas_rate','gas_fuel','gas_cum',\
-            'gradB_drift_up', 'favorable','regime','widx','CRYO_ON','R_geo','a_geo','R_sep','lam_q','Bp_OMP','ts_mult_factor',\
+            'gradB_drift_up', 'favorable','regime','widx','CRYO_ON','R_geo','a_geo','R_sep','lam_q','Bp_OMP','Bt_OMP','ts_mult_factor',\
             'outer_rho_fmp_m','outer_ne_fmp_cm3','outer_Te_fmp_eV','outer_Js_fmp_Acm2',\
             'inner_rho_fmp_m','inner_ne_fmp_cm3','inner_Te_fmp_eV','inner_Js_fmp_Acm2',\
             'upper_rho_fmp_m','upper_ne_fmp_cm3','upper_Te_fmp_eV','upper_Js_fmp_Acm2']
@@ -225,7 +225,7 @@ var_list = ['ne_prof','ne_prof_unc','Te_prof','Te_prof_unc','pe_prof','pe_prof_u
             'area_LCFS','R_prof','rvol_prof','rhop_prof','R_raw','R_raw_sp','rvol_raw','rhop_raw',\
             'ne_R','Te_R','pe_R','ne_rvol','Te_rvol','pe_rvol','ne_rhop','Te_rhop','pe_rhop',\
             'shot','tmin','tmax','f_gw','n_m3_avg','T_eV_avg','p_Pa_avg','gas_rate','gas_fuel','gas_cum',\
-            'gradB_drift_up', 'favorable','regime','widx','CRYO_ON','R_geo','a_geo','R_sep','lam_q','Bp_OMP','ts_mult_factor',\
+            'gradB_drift_up', 'favorable','regime','widx','CRYO_ON','R_geo','a_geo','R_sep','lam_q','Bp_OMP','Bt_OMP','ts_mult_factor',\
             'outer_rho_fmp_m','outer_ne_fmp_cm3','outer_Te_fmp_eV','outer_Js_fmp_Acm2',\
             'inner_rho_fmp_m','inner_ne_fmp_cm3','inner_Te_fmp_eV','inner_Js_fmp_Acm2',\
             'upper_rho_fmp_m','upper_ne_fmp_cm3','upper_Te_fmp_eV','upper_Js_fmp_Acm2']
@@ -541,8 +541,9 @@ def run_db(res, windows, plot_kin=False, user_check=False):
 
                 # request for Bpol at the midplane
 
-                Bp_OMP = cmod_tools.get_Bpol_RZ(shot, tmin, tmax, R=res['R_sep'][-1], Z=0, gfile_name=gfile_name)
+                Bp_OMP, Bt_OMP = cmod_tools.get_B_RZ(shot, tmin, tmax, R=res['R_sep'][-1], Z=0, gfile_name=gfile_name)
                 res['Bp_OMP'].append(Bp_OMP)
+                res['Bt_OMP'].append(Bt_OMP)
 
 
                 ''' 
