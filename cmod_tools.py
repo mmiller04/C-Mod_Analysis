@@ -10,7 +10,6 @@ plt.ion()
 import numpy as np
 import xarray
 from scipy.interpolate import interp1d, interp2d
-#sys.path.append('/home/millerma/OMFIT-source/omfit')
 from omfit_classes import omfit_eqdsk, omfit_mds
 import shutil, os, scipy, copy
 from IPython import embed
@@ -21,26 +20,29 @@ from scipy.constants import Boltzmann as kB, e as q_electron
 from scipy.optimize import curve_fit
 import aurora
 import sys
+# seems silly to need to do this - will try to figure out if there's a need or if one can just install their own copy
 sys.path.append('/home/sciortino/usr/python3modules/eqtools3')
 sys.path.append('/home/sciortino/usr/python3modules/gptools3')
-#sys.path.append('/home/millerma/python3modules/profiletools3')
-#sys.path.append('/home/millerma/python3modules/eqtools3')
 sys.path.append('/home/millerma/usr/profiletools3')
 import profiletools
 import eqtools
 
-# from mitlya repo
-import fit_profiles
-import fit_2D
-#import tomographic_inversion as tomo
+# from same repo
+import fit_profiles as fp
+import power_balance as pb
+import find_separatrix as fs
 
-# for eq
+# for some Bfields
 sys.path.append('/home/millerma/poloidalFieldGetter')
 from getGfileDict import getGfileDict as gfd
 
+# I could not figure it out, but for some reason there are some settings to make the plots look better (bigger labels)
+# that have disappeared with this version
 
-# PFS this is the function that grabs the data and fits it - probably too big of a function and should break it down into chunks
-def get_cmod_kin_profs(shot, tmin, tmax, geqdsk=None, pre_shift_TS=False, force_to_zero=False, frac_err=True, num_mc=100,
+
+#~# This is the function that grabs the data and fits it - probably too big of a function and should break it down into chunks
+
+def get_cmod_kin_profs(shot, tmin, tmax, pre_shift_TS=False, force_to_zero=False, frac_err=True, num_mc=100,
                        probes=['A'], osborne_fit=False, apply_final_sep_stretch=False, core_ts_mult=False, edge_ts_mult=False, core_ts_factor=1, edge_ts_factor=1):
     '''Function to load and fit modified-tanh functions to C-Mod ne and Te.
 
@@ -55,8 +57,6 @@ def get_cmod_kin_profs(shot, tmin, tmax, geqdsk=None, pre_shift_TS=False, force_
         CMOD shot number
     tmin, tmax : floats
         Times in seconds for window interval of interest
-    geqdsk : dict
-        Dictionary containing processed EFIT geqdsk file
     pre_shift_TS : bool, opt
         If True, Thomson Scattering (TS) data are shifted based on the 2-point model after being fitted 
         by themselves. This is recommended only if TS has good coverage inside and outside of the LCFS
@@ -143,36 +143,41 @@ def get_cmod_kin_profs(shot, tmin, tmax, geqdsk=None, pre_shift_TS=False, force_
 
     '''
    
-    # again, not sure if we actually need the geqdsk here 
-    if geqdsk is None:
-        # the geqdsk is used only when using the Aurora radial coordinate transformations
-        geqdsk = get_geqdsk_cmod(
-            shot, (tmin+tmax)/2.*1e3, gfiles_loc = '/home/sciortino/EFIT/lya_gfiles/')
+    ##################################################################################
 
-    # number of iterations for osborne fit to converge
-    maxfev = 2000
+    ### Namelist type stuff that may or may not want to be changed outside of this ###
 
-    # identify mode to decide how to fit profile - empirical observation
-    #mode = identify_mode(int(shot))
-    mode = 'H'
-    ped_width = 0.04 if mode == 'L' else 0.02 # will later be used to fit
+    ##################################################################################
 
-    # PFS this should be all the equilibrium information that is needed
+    maxfev = 2000 # number of iterations for osborne fit to converge
+    mode = 'L' # mode type will determine what the initial guess for the pedestal width is
+
+
+    #####################################
+
+    ### Fetch data using profiletools ###
+
+    #####################################
+
+
     try: # EFIT20 only exists for shots from certain years
         e = eqtools.CModEFITTree(int(shot), tree='EFIT20', length_unit='m')
     except:
         e = eqtools.CModEFITTree(int(shot), tree='analysis', length_unit='m')
                 
+    # If want to apply a calibration to ne data from TS against TCI
     if (core_ts_mult & (core_ts_factor == 1)) or (edge_ts_mult & (edge_ts_factor == 1)):
         ts_factor = get_ts_tci_ratio(shot, tmin, tmax, plot=False)
         print('Computed factor of {:.2f} as ratio between TCI and TS'.format(ts_factor)) 
 
-    try:
-        # require edge Thomson to be available
-        p_Te= profiletools.Te(int(shot), include=['ETS'], abscissa='sqrtpsinorm',t_min=tmin,t_max=tmax,efit_tree=e, remove_zeros=True)
-        p_ne= profiletools.ne(int(shot), include=['ETS'], abscissa='sqrtpsinorm',t_min=tmin,t_max=tmax,efit_tree=e, remove_zeros=True)
+    ## Require edge Thomson to be available
 
-        # multiply using nebar calibration if flag is trned on
+    try:
+        # Pull data in sqrt of normalized poloidal flux := rho_poloidal
+        p_Te = profiletools.Te(int(shot), include=['ETS'], abscissa='sqrtpsinorm',t_min=tmin,t_max=tmax,efit_tree=e, remove_zeros=True) # in keV
+        p_ne = profiletools.ne(int(shot), include=['ETS'], abscissa='sqrtpsinorm',t_min=tmin,t_max=tmax,efit_tree=e, remove_zeros=True) # in 1e20 m^-3
+
+        # Multiply using TCI calibration if edge flag is turned on
         if edge_ts_mult:
             if edge_ts_factor != 1: ts_factor = edge_ts_factor
             p_ne.y *= ts_factor
@@ -182,49 +187,66 @@ def get_cmod_kin_profs(shot, tmin, tmax, geqdsk=None, pre_shift_TS=False, force_
     except MDSplus.TreeNODATA:
         raise ValueError('No edge Thomson data!')
   
+
+    ## This gets triggered sometimes and I'm not quite sure what the use is
+
     try:
         equal_R = p_ne.X[:,1] == p_Te.X[:,1]
         assert np.sum(equal_R) == len(p_ne.X[:,1])
     except:
         raise ValueError('Edge Thomson rhobase differs between ne and Te')
-    
-    try:
-        # try to add core Thomson, not strictly necessary 
-        p_Te_CTS = profiletools.Te(int(shot), include=['CTS'], efit_tree=e,
-                                   abscissa='sqrtpsinorm',t_min=tmin,t_max=tmax)
-        p_ne_CTS = profiletools.ne(int(shot), include=['CTS'], efit_tree=e,
-                                   abscissa='sqrtpsinorm',t_min=tmin,t_max=tmax)
 
-        # multiply using nebar calibration if flag is trned on
+
+    # Try to add core Thomson, not strictly necessary for pedestal analysis, but necessary for full profile analysis
+
+    try:
+        # rho_poloidal 
+        p_Te_CTS = profiletools.Te(int(shot), include=['CTS'], efit_tree=e, abscissa='sqrtpsinorm',t_min=tmin,t_max=tmax) # in keV
+        p_ne_CTS = profiletools.ne(int(shot), include=['CTS'], efit_tree=e, abscissa='sqrtpsinorm',t_min=tmin,t_max=tmax) # in 1e20 m^-3
+
+        # Multiply using TCI calibration if core flag is turned on
         if core_ts_mult:
             if core_ts_factor != 1: ts_factor = core_ts_factor
             p_ne_CTS.y *= ts_factor
             p_ne_CTS.err_y *= ts_factor
             print('Multiplying CTS by factor of {:.2f}'.format(ts_factor)) 
 
+        # Combine edge and core data 
         p_Te.add_profile(p_Te_CTS)
         p_ne.add_profile(p_ne_CTS)
+
     except Exception:
         pass
-  
-   
 
-    # consider only flux surface on which points were measured, regardless of LFS or HFS
+    # consider only flux surface on which points were measured, regardless of LFS or HFS 
+    # This is most likely a line that Francesco put in perhaps if he was using different diagnostics or a different x-coordinate
     p_Te.X=np.abs(p_Te.X)
     p_ne.X=np.abs(p_ne.X)
 
 
     # set some minimum uncertainties. Recall that units in objects are 1e20m^{-3} and keV
-    p_ne.y[p_ne.y<=0.] = 0.01  # 10^18 m^-3
+    # These were set by Francesco - I'm not sure if I entirely understand what the logic is behind the specific numbers
+    p_ne.y[p_ne.y<=0.] = 0.01; # 10^18 m^-3
     p_Te.y[p_Te.y<=0.01] = 0.01 # 10 eV
     p_ne.err_y[p_ne.err_y<=0.01] = 0.01 # 10^18 m^-3
     p_Te.err_y[p_Te.err_y<=0.02] = 0.02 # 20 eV
     
-    # PFS this removes the time-axis - might not want to do this if interested in temporal fitting
+    # This removes the time-axis - might not want to do this if interested in temporal fitting
+
     p_ne.drop_axis(0)
     p_Te.drop_axis(0)
 
-    ### save the raw points before points are filtered out
+
+    # Store coordinates in Rmid as well - will use later - check if this works!
+    # For now, let's just assume the eqdsk does not vary much in the time window - later may want to use the
+    # each_t = True flag in the rho2rho function to get a better mapping - if want to do this, will need to do it
+    # before the drop_axis line when time information is still stored in array
+
+    R_ne = e.rho2rho('sqrtpsinorm', 'Rmid', p_ne.X[:,0], (tmin + tmax)/2)
+    R_Te = e.rho2rho('sqrtpsinorm', 'Rmid', p_Te.X[:,0], (tmin + tmax)/2)
+
+
+    # Save the raw points before filters to points are applied 
 
     ne_X_nofilters = p_ne.X[:,0]
     ne_Y_nofilters = p_ne.y
@@ -233,468 +255,206 @@ def get_cmod_kin_profs(shot, tmin, tmax, geqdsk=None, pre_shift_TS=False, force_
     Te_X_nofilters = p_Te.X[:,0]
     Te_Y_nofilters = p_Te.y
     Te_unc_Y_nofilters = p_Te.err_y
-   
-    # cleanup of low Te values
-    p_Te.remove_points(np.logical_and(p_Te.X[:,0]<1.03, p_Te.y<0.015))  # TS Te should be >15 eV inside near SOL
-    
-    def convert_rhop_to_R(rhop, geqdsk):
-
-        # map kps and emiss to midplane
-        from scipy.interpolate import UnivariateSpline
-        mp_ind = np.where(geqdsk['AuxQuantities']['Z'] == 0)[0][0]
-        R_mp = geqdsk['AuxQuantities']['R']
-        rhop_mp = geqdsk['AuxQuantities']['RHOpRZ'][mp_ind]
-        R0 = geqdsk['RMAXIS']
-        omp = R_mp > R0
-        rhop_to_R = UnivariateSpline(rhop_mp[omp], R_mp[omp])
-
-        return rhop_to_R(rhop)
-
-    #########################
-
-    ### choose how to deal with separatrix
 
 
-    efit_sep = True # this will not shift profiles at all
-    brunner_scaling = True # this is to decide whether to use brunner scaling or profile lambda_T
+    ##########################################
+
+    ### choose how to deal with separatrix ###
+
+    ##########################################
+
+
+    shift_profiles = False # this will not shift profiles at all
+
+    lambdaq_type = 'scaling' # profile
+    sub_type = 'brunner' #'eich' for 'scaling'; 'log_linear', 'log_quadaratic', 'tanh', etc. for 'profile'
  
 
-    if brunner_scaling:
+    # Choose which type of scaling to use for power balance
+
+    if lambdaq_type == 'scaling':
     
-        Te_sep_eV, lam_q_mm = fit_2D.Teu_2pt_model(shot, tmin, tmax, geqdsk, pressure_opt = 3, lambdaq_opt=1)
-        print('Brunner Te LCFS eV', Te_sep_eV)
+        if sub_type == 'brunner':
+            Te_sep_eV, lam_q_mm = pb.Teu_2pt_model(shot, tmin, tmax, lambdaq_opt=1)
+            print('Brunner Te LCFS eV', Te_sep_eV)
 
-    else:
-
-        # will need to make a dictionary with parameters from shot that are needed in 2pt model
-        sep_dict = {} # could just do this inside the find_separatrix function if preferred
-    
-        sep_dict['ne_R'] = convert_rhop_to_R(p_ne.X[:,0],geqdsk)
-        sep_dict['Te_R'] = convert_rhop_to_R(p_Te.X[:,0],geqdsk)
-        #sep_dict['pe_R'] = convert_rhop_to_R(p_pe.X[:,0],geqdsk) ignore pressure for now
-
-        sep_dict['ne_raw'] = p_ne.y*1e14
-        sep_dict['Te_raw'] = p_Te.y*1e3
-        #sep_dict['pe_raw'] = p_pe.y
-        
-        sep_dict['ne_raw_unc'] = p_ne.err_y*1e14
-        sep_dict['Te_raw_unc'] = p_Te.err_y*1e3
-        #sep_dict['pe_raw_unc'] = p_pe.y
-       
-        # will not fill in any of the _prof values for now - can only do this after fitting with the tanh (or some other function)
-
-        sep_dict['R_sep'] = aurora.rad_coord_transform(1.0, 'r/a', 'Rmid', geqdsk)
-
-        t,ddata = get_CMOD_var(var='q95', shot=shot, return_time=True)
-        if ddata is not None and np.any(~np.isnan(ddata)):
-            q95 = np.mean(ddata[np.argmin(np.abs(t-tmin)):np.argmin(np.abs(t-tmax))])
-        else:
-            q95 = np.nan
-        sep_dict['q95'] = q95
-
-        t,ddata = get_CMOD_var(var='Bp', shot=shot, return_time=True)
-        if ddata is not None and np.any(~np.isnan(ddata)):
-            Bp = np.mean(ddata[np.argmin(np.abs(t-tmin)):np.argmin(np.abs(t-tmax))])
-        else:
-            Bp = np.nan
-        sep_dict['Bp'] = Bp
-
-        t,ddata = get_CMOD_var(var='Bt', shot=shot, return_time=True)
-        if ddata is not None and np.any(~np.isnan(ddata)):
-            Bt = np.mean(ddata[np.argmin(np.abs(t-tmin)):np.argmin(np.abs(t-tmax))])
-        else:
-            Bt = np.nan
-        sep_dict['Bt'] = Bt
-
-        # calculate P_net
-
-        t,ddata = get_CMOD_var(var='P_oh', shot=shot, return_time=True)
-        if ddata is not None and np.any(~np.isnan(ddata)):
-            P_oh = np.mean(ddata[np.argmin(np.abs(t-tmin)):np.argmin(np.abs(t-tmax))])
-        else:
-            P_oh = np.nan
-
-        t,ddata = get_CMOD_var(var='P_RF', shot=shot, return_time=True)
-        if ddata is not None and np.any(~np.isnan(ddata)):
-            P_RF = np.mean(ddata[np.argmin(np.abs(t-tmin)):np.argmin(np.abs(t-tmax))])
-        else:
-            P_RF = np.nan
-            
-        ddata = get_CMOD_var(var='dWdt', shot=shot, tmin=tmin, tmax=tmax, return_time=False)
-        dWdt = np.mean(ddata)
-    
-        t,ddata = get_CMOD_var(var='P_rad_main', shot=shot, return_time=True)
-        if ddata is not None and np.any(~np.isnan(ddata)):
-            P_rad_main = np.mean(ddata[np.argmin(np.abs(t-tmin)):np.argmin(np.abs(t-tmax))])
-        else:
-            P_rad_main = np.nan
-
-        t,ddata = get_CMOD_var(var='P_rad_diode', shot=shot, return_time=True)
-        if ddata is not None and np.any(~np.isnan(ddata)):
-            P_rad_diode = np.mean(ddata[np.argmin(np.abs(t-tmin)):np.argmin(np.abs(t-tmax))])
-        else:
-            P_rad_diode = np.nan
-
-        P_rad = P_rad_diode if np.isnan(P_rad_main) else P_rad_main
-
-        sep_dict['P_net'] = P_oh + P_RF - dWdt - P_rad
-
-        import find_separatrix as fp
-        Te_sep_eV, lam_q_mm = fp.find_separatrix(sep_dict, fit_type='log_linear',plot=True)
+        elif sub_type == 'eich':
+            Te_sep_eV, lam_q_mm = pb.Teu_2pt_model(shot, tmin, tmax, lambdaq_opt=2)
+            print('Eich Te LCFS eV', Te_sep_eV)
 
 
-    #########################
+    elif lambda_qtype == 'profile':
 
-    ### now begin fitting ###
+        # will need to make a dictionary with parameters from shot that are needed in 2pt model    
 
-    #########################
+        sep_dict = assemble_dict_for_2pm(shot, tmin, tmax,
+                                            p_ne.X[:,0], R_ne, p_ne.y, p_ne.err_y,
+                                            p_Te.X[:,0], R_Te, p_Te.y, p_Te.err_y)
 
-    
-    pre_shift_TS = False # this will shift the TS data according to Tesep (before any probe data if it exists) - dont think this is necessary - may want to consider again if we want to use probe data at some point
-    rhop_kp = np.linspace(0.0, 1.1, 1000)
-   
-    # these are used to determine which points belong to TS vs. probes 
-    ne_X_before = p_ne.X[:,0]
-    Te_X_before = p_Te.X[:,0]
+        Te_sep_eV, lam_q_mm = fs.find_separatrix(sep_dict, fit_type=sub_type, plot=True)
+        print('Profile Te LCFS eV', Te_sep_eV)
+
+
+    #####################################
+
+    ### now begin fitting to an mtanh ###
+
+    #####################################
+
 
     reg = [8] # these will determine which coefficients in the fit are set to zero to prevent overfitting
+    reg2 = [7,8] # this should help cases that have shallower gradients
     edge_chi = True # this will use chisqr from the edge instead of the whole profile to evaluate goodness of fit
+    plot_fit = True # this will plot the best mtanh fit
 
-    # begin the fitting
-    if pre_shift_TS:
+    rhop_min_fit = 0 # if only want to fit to some portion of the data (i.e. only the pedestal for example)
+    rhop_max_fit = 1.2 # the max value
 
-        # filter out some points with large uncetainties before the fit
-        p_ne, p_Te = prefit_filter(p_ne, p_Te)
+    ped_width = 0.04 if mode == 'L' else 0.02 # used to fit
+
+    # For now, the mtanh fitting is done independently of a fit used to find the separatrix - can ammend later to give one an option to use this to find the separatrix
     
-        if force_to_zero:
-            # force fits to go down in the far SOL (r/a=1.2) to make the routine more robust
-            p_Te.add_data( np.array([[1.05]]), np.array([5e-3]), err_X=np.array([0.001]), err_y=np.array([0.001]))
-            p_ne.add_data( np.array([[1.1]]), np.array([0.1]), err_X=np.array([0.001]), err_y=np.array([0.001]))
+    # Create coordinate array to output fitted profiles onto
+    rhop_kp = np.linspace(0.0, 1.1, 1000)
+    
+    # Filter out some points with large uncertainties before the fit - may want to change this and make it more flexible
+    p_ne, p_Te = prefit_filter(p_ne, p_Te)
 
-        # need to fit TS first 
+    # Force fits to go down in the SOL to make the routine more robust - should be able to modify where and how low
+    if force_to_zero:
+        p_Te.add_data( np.array([[1.05]]), np.array([5e-3]), err_X=np.array([0.001]), err_y=np.array([0.001]))
+        p_ne.add_data( np.array([[1.1]]), np.array([0.1]), err_X=np.array([0.001]), err_y=np.array([0.001]))
+
+    # Sort the arrays - not sure if this is needed for the fit (likely not)
+    idxs_ne = np.argsort(p_ne.X[:,0])
+    idxs_Te = np.argsort(p_Te.X[:,0])
+
+    # Mask only data that are in desired fit range
+    mask_ne = (p_ne.X[idxs_ne,0] > rhop_min_fit) & (p_ne.X[idxs_ne,0] < rhop_max_fit)
+    mask_Te = (p_Te.X[idxs_Te,0] > rhop_min_fit) & (p_Te.X[idxs_Te,0] < rhop_max_fit)
+
+    # Fit the profiles!  
+    ne, ne_popt, ne_perr, ne_chisqr = fp.best_osbourne(p_ne.X[idxs_ne,0][mask_ne], p_ne.y[idxs_ne][mask_ne], vals_unc=p_ne.err_y[idxs_ne][mask_ne], x_out=rhop_kp, maxfev=maxfev, reg=reg, edge_chi=edge_chi, ped_width=ped_width, ne=True)
+    Te, Te_popt, Te_perr, Te_chisqr = fp.best_osbourne(p_Te.X[idxs_Te,0][mask_Te], p_Te.y[idxs_Te][mask_Te], vals_unc=p_Te.err_y[idxs_Te][mask_Te], x_out=rhop_kp, maxfev=maxfev, reg=reg, edge_chi=edge_chi, ped_width=ped_width, ne=False)
+
+    # Apply filter depending on initial fit - in short, excludes points far from the fit
+    p_ne, p_Te = postfit_filter(p_ne, p_Te, ne, Te, rhop_kp)
+
+
+    # Add the zeros back in in the SOL in case they were removed by the pre/postfit filters
+    if force_to_zero:
+        p_Te.add_data( np.array([[1.05]]), np.array([5e-3]), err_X=np.array([0.001]), err_y=np.array([0.001]))
+        p_ne.add_data( np.array([[1.1]]), np.array([0.1]), err_X=np.array([0.001]), err_y=np.array([0.001]))
+
+
+
+    # Before final fit, initalize electron pressure profile and fit that as well - propagate uncertainties from ne, Te
+    p_pe = create_pe(p_ne, p_Te)  
+    pe_Y_nofilters = p_pe.y
+    pe_Y_unc_nofilters = p_pe.err_y
+
+    # Sort the arrays again, now also including the pressure
+    idxs_ne = np.argsort(p_ne.X[:,0])
+    idxs_Te = np.argsort(p_Te.X[:,0])
+    idxs_pe = np.argsort(p_pe.X[:,0])
+
+    # Mask data again
+    mask_ne = (p_ne.X[idxs_ne,0] > rhop_min_fit) & (p_ne.X[idxs_ne,0] < rhop_max_fit)
+    mask_Te = (p_Te.X[idxs_Te,0] > rhop_min_fit) & (p_Te.X[idxs_Te,0] < rhop_max_fit)
+    mask_pe = (p_pe.X[idxs_pe,0] > rhop_min_fit) & (p_pe.X[idxs_pe,0] < rhop_max_fit)
+
+
+    '''    
+    # Fit again
+    ne, ne_popt, ne_perr, ne_chisqr = fp.best_osbourne(p_ne.X[idxs_ne,0][mask_ne], p_ne.y[idxs_ne][mask_ne], vals_unc=p_ne.err_y[idxs_ne][mask_ne], x_out=rhop_kp, maxfev=maxfev, reg=reg, edge_chi=edge_chi, ped_width=ped_width, ne=True)
+    Te, Te_popt, Te_perr, Te_chisqr = fp.best_osbourne(p_Te.X[idxs_Te,0][mask_Te], p_Te.y[idxs_Te][mask_Te], vals_unc=p_Te.err_y[idxs_Te][mask_Te], x_out=rhop_kp, maxfev=maxfev, reg=reg, edge_chi=edge_chi, ped_width=ped_width, ne=False)
+    '''
+
+    # now fit!
+    ne, ne_popt, ne_perr, ne_chisqr = fp.best_osbourne(p_ne.X[idxs_ne,0][mask_ne], p_ne.y[idxs_ne][mask_ne], vals_unc=p_ne.err_y[idxs_ne][mask_ne], x_out=rhop_kp, maxfev=maxfev, reg=reg, edge_chi=edge_chi, ped_width=ped_width, ne=True)
+    Te, Te_popt, Te_perr, Te_chisqr = fp.best_osbourne(p_Te.X[idxs_Te,0][mask_Te], p_Te.y[idxs_Te][mask_Te], vals_unc=p_Te.err_y[idxs_Te][mask_Te], x_out=rhop_kp, maxfev=maxfev, reg=reg, edge_chi=edge_chi, ped_width=ped_width, ne=False)
+    pe, pe_popt, pe_perr, pe_chisqr = fp.best_osbourne(p_pe.X[idxs_pe,0][mask_pe], p_pe.y[idxs_pe][mask_pe], vals_unc=p_pe.err_y[idxs_pe][mask_pe], x_out=rhop_kp, maxfev=maxfev, reg=reg, edge_chi=edge_chi, ped_width=ped_width, ne=False)
         
-        idxs_ne = np.argsort(p_ne.X[:,0])
-        idxs_Te = np.argsort(p_Te.X[:,0])
+    # also fit with a different reg and see which has smaller chisqr
+    ne2, ne_popt2, ne_perr2, ne_chisqr2 = fp.best_osbourne(p_ne.X[idxs_ne,0][mask_ne], p_ne.y[idxs_ne][mask_ne], vals_unc=p_ne.err_y[idxs_ne][mask_ne], x_out=rhop_kp, maxfev=maxfev, reg=reg2, edge_chi=edge_chi, ped_width=ped_width, ne=True)
+    Te2, Te_popt2, Te_perr2, Te_chisqr2 = fp.best_osbourne(p_Te.X[idxs_Te,0][mask_Te], p_Te.y[idxs_Te][mask_Te], vals_unc=p_Te.err_y[idxs_Te][mask_Te], x_out=rhop_kp, maxfev=maxfev, reg=reg2, edge_chi=edge_chi, ped_width=ped_width, ne=False)
+    pe2, pe_popt2, pe_perr2, pe_chisqr2 = fp.best_osbourne(p_pe.X[idxs_pe,0][mask_pe], p_pe.y[idxs_pe][mask_pe], vals_unc=p_pe.err_y[idxs_pe][mask_pe], x_out=rhop_kp, maxfev=maxfev, reg=reg2, edge_chi=edge_chi, ped_width=ped_width, ne=False)
 
-        # this was used in the past to only fit some portion of the profile - may not be needed anymore
-        min_fit = 0
-        max_fit = 0
-
-        mask_ne = p_ne.X[idxs_ne,0] > min_fit
-        mask_Te = p_Te.X[idxs_Te,0] > min_fit   
-
-        # not sure why this is commented out, but in theory one should be able to specify
-        # a max and a min to restrict the fit range
-
-        #mask_ne = np.logical_or(p_ne.X[idxs_ne,0] > min_fit, p_ne.X[idxs_ne,0] < max_fit)
-        #mask_Te = np.logical_or(p_Te.X[idxs_Te,0] > min_fit, p_Te.X[idxs_Te,0] < max_fit)
-
-        # fit the profiles!        
-        maxfev = 2000 # number of iterations for fit to converge
-    
-        ne, ne_popt, ne_perr, ne_chisqr = fit_profiles.best_osbourne(p_ne.X[idxs_ne,0][mask_ne], p_ne.y[idxs_ne][mask_ne], vals_unc=p_ne.err_y[idxs_ne][mask_ne], x_out=rhop_kp, maxfev=maxfev, reg=reg, edge_chi=edge_chi, ped_width=ped_width, ne=True)
-        Te, Te_popt, Te_perr, Te_chisqr = fit_profiles.best_osbourne(p_Te.X[idxs_Te,0][mask_Te], p_Te.y[idxs_Te][mask_Te], vals_unc=p_Te.err_y[idxs_Te][mask_Te], x_out=rhop_kp, maxfev=maxfev, reg=reg, edge_chi=edge_chi, ped_width=ped_width, ne=False)
-
-        # apply filter depending on initial fit - in short, excludes points far from the fit
-        p_ne, p_Te = postfit_filter(p_ne, p_Te, ne, Te, rhop_kp)
-
-        if force_to_zero:
-            # add extra points in the far SOL again to force fits to go down
-            p_Te.add_data( np.array([[1.05]]), np.array([5e-3]), err_X=np.array([0.001]), err_y=np.array([0.001]))
-            p_ne.add_data( np.array([[1.1]]), np.array([0.1]), err_X=np.array([0.001]), err_y=np.array([0.001]))
-
-        # fit them again after having filtered for outliers! - not sure if this actually does anything
-        idxs_ne = np.argsort(p_ne.X[:,0])
-        idxs_Te = np.argsort(p_Te.X[:,0])
-
-        mask_ne = p_ne.X[idxs_ne,0] > min_fit
-        mask_Te = p_Te.X[idxs_Te,0] > min_fit   
-        #mask_ne = np.logical_or(p_ne.X[idxs_ne,0] > min_fit, p_ne.X[idxs_ne,0] < max_fit)
-        #mask_Te = np.logical_or(p_Te.X[idxs_Te,0] > min_fit, p_Te.X[idxs_Te,0] < max_fit)
-        
-        ne, ne_popt, ne_perr, ne_chisqr = fit_profiles.best_osbourne(p_ne.X[idxs_ne,0][mask_ne], p_ne.y[idxs_ne][mask_ne], vals_unc=p_ne.err_y[idxs_ne][mask_ne], x_out=rhop_kp, maxfev=maxfev, reg=reg, edge_chi=edge_chi, ped_width=ped_width, ne=True)
-        Te, Te_popt, Te_perr, Te_chisqr = fit_profiles.best_osbourne(p_Te.X[idxs_Te,0][mask_Te], p_Te.y[idxs_Te][mask_Te], vals_unc=p_Te.err_y[idxs_Te][mask_Te], x_out=rhop_kp, maxfev=maxfev, reg=reg, edge_chi=edge_chi, ped_width=ped_width, ne=False)
-
-        ## shift profiles if efit_sep is set to False
-        if efit_sep:
-            xSep_TS = 1
-        else:
-            xSep_TS = fit_2D.shift_profs([1],rhop_kp,Te[None,:]*1e3,Te_LCFS=Te_sep_eV)
-        print('Shifting raw TS points by rhop = {:.3f}'.format(float(1 - xSep_TS)))
-        p_ne.X += 1 - xSep_TS
-        p_Te.X += 1 - xSep_TS
-   
-        ne_X_nofilters += 1 - xSep_TS
-        Te_X_nofilters += 1 - xSep_TS
- 
-        # before final fit, initalize electron pressure profile and fit that as well
-        # initialize pressure profile tool object and propagate uncertainties from ne, Te
-        p_pe = create_pe(p_ne, p_Te)  
-        mask_pe = np.full(p_pe.X[:,0].shape, True)
-        idxs_pe = np.argsort(p_pe.X[:,0])
-
-        pe_Y_nofilters = p_pe.y
-        pe_Y_unc_nofilters = p_pe.err_y
-
-        # now fit!
-        ne, ne_popt, ne_perr, ne_chisqr = fit_profiles.best_osbourne(p_ne.X[idxs_ne,0][mask_ne], p_ne.y[idxs_ne][mask_ne], vals_unc=p_ne.err_y[idxs_ne][mask_ne], x_out=rhop_kp, maxfev=maxfev, reg=reg, edge_chi=edge_chi, ped_width=ped_width, ne=True)
-        Te, Te_popt, Te_perr, Te_chisqr = fit_profiles.best_osbourne(p_Te.X[idxs_Te,0][mask_Te], p_Te.y[idxs_Te][mask_Te], vals_unc=p_Te.err_y[idxs_Te][mask_Te], x_out=rhop_kp, maxfev=maxfev, reg=reg, edge_chi=edge_chi, ped_width=ped_width, ne=False)
-        pe, pe_popt, pe_perr, pe_chisqr = fit_profiles.best_osbourne(p_pe.X[idxs_pe,0][mask_pe], p_pe.y[idxs_pe][mask_pe], vals_unc=p_pe.err_y[idxs_pe][mask_pe], x_out=rhop_kp, maxfev=maxfev, reg=reg, edge_chi=edge_chi, ped_width=ped_width, ne=False)
-            
-        # also fit with a different reg and see which has smaller chisqr
-        reg2 = [7,8] # this should help cases that have shallower gradients
-        ne2, ne_popt2, ne_perr2, ne_chisqr2 = fit_profiles.best_osbourne(p_ne.X[idxs_ne,0][mask_ne], p_ne.y[idxs_ne][mask_ne], vals_unc=p_ne.err_y[idxs_ne][mask_ne], x_out=rhop_kp, maxfev=maxfev, reg=reg2, edge_chi=edge_chi, ped_width=ped_width, ne=True)
-        Te2, Te_popt2, Te_perr2, Te_chisqr2 = fit_profiles.best_osbourne(p_Te.X[idxs_Te,0][mask_Te], p_Te.y[idxs_Te][mask_Te], vals_unc=p_Te.err_y[idxs_Te][mask_Te], x_out=rhop_kp, maxfev=maxfev, reg=reg2, edge_chi=edge_chi, ped_width=ped_width, ne=False)
-        pe2, pe_popt2, pe_perr2, pe_chisqr2 = fit_profiles.best_osbourne(p_pe.X[idxs_pe,0][mask_pe], p_pe.y[idxs_pe][mask_pe], vals_unc=p_pe.err_y[idxs_pe][mask_pe], x_out=rhop_kp, maxfev=maxfev, reg=reg2, edge_chi=edge_chi, ped_width=ped_width, ne=False)
-    
-        if (ne_chisqr2 > ne_chisqr):
-            nereg = reg
-            print('Using ne reg option 1')
-        else:
-            ne, ne_popt, ne_perr, ne_chisqr = ne2, ne_popt2, ne_perr2, ne_chisqr2
-            nereg = reg2
-            print('Using ne reg option 2')
-
-        if (Te_chisqr2 > Te_chisqr):
-            Tereg = reg
-            print('Using Te reg option 1')
-        else:
-            Te, Te_popt, Te_perr, Te_chisqr = Te2, Te_popt2, Te_perr2, Te_chisqr2
-            Tereg = reg2
-            print('Using Te reg option 2')
-
-        if (pe_chisqr2 > pe_chisqr):
-            pereg = reg
-            print('Using pe reg option 1')
-        else:
-            pe, pe_popt, pe_perr, pe_chisqr = pe2, pe_popt2, pe_perr2, pe_chisqr2
-            pereg = reg2
-            print('Using pe reg option 2')
-
-
-    # attempt to fetch ASP and FSP data if available
-
-    use_pressure = False # if set to True will not shift probes and will try to match TS + SP pressure at separatrix
-    
-    p_ne_p, p_ne_T = None, None
-
-    # this will try to grab probe data if it exists - probably should remove this
-    try:
-        p_ne_p, p_Te_p  = fetch_edge_probes(shot, (tmin+tmax)/2., Te_sep_eV, geqdsk = geqdsk,
-                                        rhop_min=0.9, # 0.96,  # fetch all data before radially shifting
-                                        rhop_max=1.1,  # don't trust data too far into the SOL...
-                                        probes=probes, shift_probes = not use_pressure) # if use pressure don't shift probes
-    except Exception as e:
-        print('No good probe data for this shot!')
-        print(e)
-
-    # PFS this will be skipped if there is no probe data
-    # combine profiles and refit + shift if there is probe data
-    if p_ne_p is not None: 
-
-        if use_pressure:
-            _out = match_pressure(p_ne, p_Te, p_ne_p, p_Te_p, plot=True)
-            p_ne_p, p_Te_p = _out
-
-        filt_TS = False
-        filt_SP = False
-
-        # option to filter some data above certain range
-        
-        if filt_TS:
-            _out = filter_TS(p_ne, p_Te, p_ne_p, p_Te_p, 0.02) # cutoff in keV
-            p_ne, p_Te, p_ne_p, p_Te_p = _out
-
-        if filt_SP:
-            _out = filter_SP(p_ne, p_Te, p_ne_p, p_Te_p, 0.05) # cutoff in keV
-            p_ne, p_Te, p_ne_p, p_Te_p = _out
-    
-        # add cleaned profiles
-        p_ne.add_profile(p_ne_p)
-        p_Te.add_profile(p_Te_p)
-        
-        # add the data to the unfiltered array of ETS points
-        ne_X_nofilters = np.concatenate((ne_X_nofilters, p_ne_p.X[:,0]))
-        ne_Y_nofilters = np.concatenate((ne_Y_nofilters, p_ne_p.y))
-        ne_unc_Y_nofilters = np.concatenate((ne_unc_Y_nofilters, p_ne_p.err_y))
-        
-        Te_X_nofilters = np.concatenate((Te_X_nofilters, p_Te_p.X[:,0]))
-        Te_Y_nofilters = np.concatenate((Te_Y_nofilters, p_Te_p.y))
-        Te_unc_Y_nofilters = np.concatenate((Te_unc_Y_nofilters, p_Te_p.err_y))
-
-        ne_probe_X = copy.deepcopy(p_ne_p.X)
-        Te_probe_X = copy.deepcopy(p_Te_p.X)
-
-        num_ne_SP = len(ne_probe_X)
-        num_Te_SP = len(Te_probe_X)
-        
-        num_ne_SP_nofilter = len(ne_probe_X)
-        num_Te_SP_nofilter = len(Te_probe_X)
-
-        ne_X_before_filter = ne_probe_X
-        Te_X_before_filter = Te_probe_X
-
-        # perform a re-prefilter - probably only does a filter of SP at this point     
-        p_ne, p_Te = prefit_filter(p_ne, p_Te, TS=False)
-   
-        ne_X_after_filter = p_ne.X[:,0]
-        Te_X_after_filter = p_ne.X[:,0]
-
-        ne_pts_removed = np.setdiff1d(ne_X_before_filter, ne_X_after_filter)
-        Te_pts_removed = np.setdiff1d(Te_X_before_filter, Te_X_after_filter)
-
-        ne_probe_pts_removed = len(np.intersect1d(ne_probe_X, ne_pts_removed))
-        Te_probe_pts_removed = len(np.intersect1d(Te_probe_X, Te_pts_removed))
-
-        num_ne_SP -= ne_probe_pts_removed
-        num_Te_SP -= Te_probe_pts_removed
-        
- 
-        #if force_to_zero:
-            # force fits to go down in the far SOL (r/a=1.2) to make the routine more robust
-        #    p_Te.add_data( np.array([[1.2]]), np.array([10e-3]), err_X=np.array([0.001]), err_y=np.array([0.001]))
-        #    p_ne.add_data( np.array([[1.2]]), np.array([0.1]), err_X=np.array([0.001]), err_y=np.array([0.001]))
-
-        #lim_dom = 0 
-
-        # Now fit:    
-        idxs_ne = np.argsort(p_ne.X[:,0])
-        idxs_Te = np.argsort(p_Te.X[:,0])
-
-        mask_ne = p_ne.X[idxs_ne,0] > min_fit
-        mask_Te = p_Te.X[idxs_Te,0] > min_fit
-        #mask_ne = np.logical_or(p_ne.X[idxs_ne,0] > min_fit, p_ne.X[idxs_ne,0] < max_fit)
-        #mask_Te = np.logical_or(p_Te.X[idxs_Te,0] > min_fit, p_Te.X[idxs_Te,0] < max_fit)
-        #mask_ne = np.logical_and(p_ne.X[:,0][idxs_ne] > lim_dom, p_ne.X[:,0][idxs_ne] < 1.05) 
-        #mask_Te = np.logical_and(p_Te.X[:,0][idxs_Te] > lim_dom, p_Te.X[:,0][idxs_Te] < 1.05) 
-
-        #mask_ne = np.full(p_ne.X[:,0].shape, True)
-        #mask_Te = np.full(p_Te.X[:,0].shape, True)
-
-        # note: reg is only used in osbourne fit, not in superfit
-
-
-        # fit the profiles! (again)
-        maxfev = 2000 # number of iterations for osbourne fit to converge
-    
-        ne, ne_popt, ne_perr, ne_chisqr = fit_profiles.best_osbourne(p_ne.X[idxs_ne,0][mask_ne], p_ne.y[idxs_ne][mask_ne], vals_unc=p_ne.err_y[idxs_ne][mask_ne], x_out=rhop_kp, maxfev=maxfev, reg=nereg, edge_chi=edge_chi, ped_width=ped_width, ne=True)
-        Te, Te_popt, Te_perr, Te_chisqr = fit_profiles.best_osbourne(p_Te.X[idxs_Te,0][mask_Te], p_Te.y[idxs_Te][mask_Te], vals_unc=p_Te.err_y[idxs_Te][mask_Te], x_out=rhop_kp, maxfev=maxfev, reg=Tereg, edge_chi=edge_chi, ped_width=ped_width, ne=False)
-    
-        # check how many probe points are removed in postfit filter
-        ne_probe_X = copy.deepcopy(p_ne_p.X)
-        Te_probe_X = copy.deepcopy(p_Te_p.X)
-        
-        ne_X_before_filter = ne_probe_X
-        Te_X_before_filter = Te_probe_X
-
-        p_ne, p_Te = postfit_filter(p_ne, p_Te, ne, Te, rhop_kp)
-        
-        ne_X_after_filter = p_ne.X[:,0]
-        Te_X_after_filter = p_ne.X[:,0]
-
-        ne_pts_removed = np.setdiff1d(ne_X_before_filter, ne_X_after_filter)
-        Te_pts_removed = np.setdiff1d(Te_X_before_filter, Te_X_after_filter)
-
-        ne_probe_pts_removed = len(np.intersect1d(ne_probe_X, ne_pts_removed))
-        Te_probe_pts_removed = len(np.intersect1d(Te_probe_X, Te_pts_removed))
-
-        num_ne_SP -= ne_probe_pts_removed
-        num_Te_SP -= Te_probe_pts_removed
-        
-
-        #if force_to_zero:
-        #    # add xtra points in the far SOL again to force fits to go down
-        #    p_Te.add_data( np.array([[1.2]]), np.array([10e-3]), err_X=np.array([0.001]), err_y=np.array([0.001]))
-        #    p_ne.add_data( np.array([[1.2]]), np.array([0.1]), err_X=np.array([0.001]), err_y=np.array([0.001]))
-    
-        # Fit again:
-        idxs_ne = np.argsort(p_ne.X[:,0])
-        idxs_Te = np.argsort(p_Te.X[:,0])
-
-        #lim_dom = 0
-
-        mask_ne = p_ne.X[idxs_ne,0] > min_fit
-        mask_Te = p_Te.X[idxs_Te,0] > min_fit
-        #mask_ne = np.logical_or(p_ne.X[idxs_ne,0] > min_fit, p_ne.X[idxs_ne,0] < max_fit)
-        #mask_Te = np.logical_or(p_Te.X[idxs_Te,0] > min_fit, p_Te.X[idxs_Te,0] < max_fit)
-        #mask_ne = np.logical_and(p_ne.X[:,0][idxs_ne] > lim_dom, p_ne.X[:,0][idxs_ne] < 1.05) 
-        #mask_Te = np.logical_and(p_Te.X[:,0][idxs_Te] > lim_dom, p_Te.X[:,0][idxs_Te] < 1.05) 
-    
-        #mask_ne = np.full(p_ne.X[:,0].shape, True)
-        #mask_Te = np.full(p_Te.X[:,0].shape, True)
-
-        # before final fit, initalize electron pressure profile and fit that as well
-        # initialize pressure profile tool object and propagate uncertainties from ne, Te
-        p_pe = create_pe(p_ne, p_Te)  
-        mask_pe = np.full(p_pe.X[:,0].shape, True)
-        idxs_pe = np.argsort(p_pe.X[:,0])
-    
-        # fit them again! (again)
-        ne, ne_popt, ne_perr, ne_chisqr = fit_profiles.best_osbourne(p_ne.X[idxs_ne,0][mask_ne], p_ne.y[idxs_ne][mask_ne], vals_unc=p_ne.err_y[idxs_ne][mask_ne], x_out=rhop_kp, maxfev=maxfev, reg=nereg, edge_chi=edge_chi, ped_width=ped_width, ne=True)
-        Te, Te_popt, Te_perr, Te_chisqr = fit_profiles.best_osbourne(p_Te.X[idxs_Te,0][mask_Te], p_Te.y[idxs_Te][mask_Te], vals_unc=p_Te.err_y[idxs_Te][mask_Te], x_out=rhop_kp, maxfev=maxfev, reg=Tereg, edge_chi=edge_chi, ped_width=ped_width, ne=False)
-        pe, pe_popt, pe_perr, pe_chisqr = fit_profiles.best_osbourne(p_pe.X[idxs_pe,0][mask_pe], p_pe.y[idxs_pe][mask_pe], vals_unc=p_pe.err_y[idxs_pe][mask_pe], x_out=rhop_kp, maxfev=maxfev, reg=pereg, edge_chi=edge_chi, ped_width=ped_width, ne=False)
-
-        apply_final_sep_shift = False#True
-        if apply_final_sep_shift:
-            
-            # shift combined profiles once more
-    
-            #xSep_all = fit_2D.shift_profs([1],rhop_kp,Te[None,:]*1e3,Te_LCFS=Te_sep_eV)
-            if efit_sep:
-                xSep_all = 1
-            else:
-                xSep_all = fit_2D.shift_profs([1],rhop_kp,Te[None,:]*1e3,Te_LCFS=Te_sep_eV)
-            print('Combined profile shift: rhop = {:.3f}'.format(float(1 - xSep_all)))
-
-            p_ne.X += 1 - xSep_all
-            p_Te.X += 1 - xSep_all
-       
-            ne_X_nofilters += 1 - xSep_all
-            Te_X_nofilters += 1 - xSep_all
- 
-            # before final fit, initalize electron pressure profile and fit that as well
-            # initialize pressure profile tool object and propagate uncertainties from ne, Te
-            p_pe = create_pe(p_ne, p_Te)  
-            mask_pe = np.full(p_pe.X[:,0].shape, True)
-            idxs_pe = np.argsort(p_pe.X[:,0])
-
-            # now refit to get final profiles
-            ne, ne_popt, ne_perr, ne_chisqr = fit_profiles.best_osbourne(p_ne.X[idxs_ne,0][mask_ne], p_ne.y[idxs_ne][mask_ne], vals_unc=p_ne.err_y[idxs_ne][mask_ne], x_out=rhop_kp, maxfev=maxfev, reg=nereg, edge_chi=edge_chi, ped_width=ped_width, ne=True)
-            Te, Te_popt, Te_perr, Te_chisqr = fit_profiles.best_osbourne(p_Te.X[idxs_Te,0][mask_Te], p_Te.y[idxs_Te][mask_Te], vals_unc=p_Te.err_y[idxs_Te][mask_Te], x_out=rhop_kp, maxfev=maxfev, reg=Tereg, edge_chi=edge_chi, ped_width=ped_width, ne=False)
-            pe, pe_popt, pe_perr, pe_chisqr = fit_profiles.best_osbourne(p_pe.X[idxs_pe,0][mask_pe], p_pe.y[idxs_pe][mask_pe], vals_unc=p_pe.err_y[idxs_pe][mask_pe], x_out=rhop_kp, maxfev=maxfev, reg=pereg, edge_chi=edge_chi, ped_width=ped_width, ne=False)
-            
-    
+    if (ne_chisqr2 > ne_chisqr):
+        nereg = reg
+        print('Using ne reg option 1')
     else:
-        num_ne_SP = 0
-        num_Te_SP = 0
-        num_ne_SP_nofilter = 0
-        num_Te_SP_nofilter = 0
+        ne, ne_popt, ne_perr, ne_chisqr = ne2, ne_popt2, ne_perr2, ne_chisqr2
+        nereg = reg2
+        print('Using ne reg option 2')
+
+    if (Te_chisqr2 > Te_chisqr):
+        Tereg = reg
+        print('Using Te reg option 1')
+    else:
+        Te, Te_popt, Te_perr, Te_chisqr = Te2, Te_popt2, Te_perr2, Te_chisqr2
+        Tereg = reg2
+        print('Using Te reg option 2')
+
+    if (pe_chisqr2 > pe_chisqr):
+        pereg = reg
+        print('Using pe reg option 1')
+    else:
+        pe, pe_popt, pe_perr, pe_chisqr = pe2, pe_popt2, pe_perr2, pe_chisqr2
+        pereg = reg2
+        print('Using pe reg option 2')
 
 
-    # PFS probably don't need anything else after this point if not interested in gradients
+    # Shift profiles if shift_profiles is set to True
+    if shift_profiles:
+        xSep_TS = fit_2D.shift_profs([1],rhop_kp,Te[None,:]*1e3,Te_LCFS=Te_sep_eV)
+    else: 
+        xSep_TS = 1
+
+    print('Shifting raw TS points by rhop = {:.3f}'.format(float(1 - xSep_TS)))
+
+
+    # Shift the fit coordinates
+    rhop_kp += 1 - xSep_TS
+
+    # Shift the filtered raw coordinates
+    p_ne.X += 1 - xSep_TS
+    p_Te.X += 1 - xSep_TS
+
+    # Shift the unfiltered raw coordinates
+    ne_X_nofilters += 1 - xSep_TS
+    Te_X_nofilters += 1 - xSep_TS
 
     # now that functions are fit, get gradients
+    # Need some mapping from rhop to R to get the gradient - pass in eqtools object, 'e'
 
-    grad_ne = get_fit_gradient(ne, ne_popt, rhop_kp, 'osborne', geqdsk, grad_type='analytic', out='R', reg=nereg, plot=False)
-    grad_Te = get_fit_gradient(Te, Te_popt, rhop_kp, 'osborne', geqdsk, grad_type='analytic', out='R', reg=Tereg, plot=False)
-    grad_pe = get_fit_gradient(pe, pe_popt, rhop_kp, 'osborne', geqdsk, grad_type='analytic', out='R', reg=pereg, plot=False)
+    grad_ne = get_fit_gradient(ne, ne_popt, rhop_kp, 'osborne', e, tmin, tmax, grad_type='analytic', wrt='R', reg=nereg, plot=False)
+    grad_Te = get_fit_gradient(Te, Te_popt, rhop_kp, 'osborne', e, tmin, tmax, grad_type='analytic', wrt='R', reg=Tereg, plot=False)
+    grad_pe = get_fit_gradient(pe, pe_popt, rhop_kp, 'osborne', e, tmin, tmax, grad_type='analytic', wrt='R', reg=pereg, plot=False)
 
 
-    '''
-    grad_ne_R = get_fit_gradient(ne, ne_popt, roa_kp, 'osborne', geqdsk, grad_type='analytic', out='R', reg=reg, plot=False)
-    fig,ax = plt.subplots()
-    ax.plot(roa_kp, -grad_ne_R, '-r', lw=2, label='$\\frac{\\partial}{\\partial R}$')
-    ax.plot(roa_kp, -grad_ne, '-b', lw=2, label='$\\frac{\\partial}{\\partial r_{vol}}$')
-    ax.set_ylabel('$\\nabla n_{e} (10^{20} m^{-4})$')
-    ax.set_xlabel('r/a')
-    ax.legend(loc='best')
-    '''
+    # Collect the raw data into profiletools-style object
+    p_ne_pf = build_profile_prefilter(ne_X_nofilters, ne_Y_nofilters, ne_unc_Y_nofilters, 'ne')
+    p_Te_pf = build_profile_prefilter(Te_X_nofilters, Te_Y_nofilters, Te_unc_Y_nofilters, 'Te')
 
-    # this initializes a profile object which will be useful for calculating errors using
-    # the bootsrapping technique
-    f_ne = kinetic_profile(rhop_kp, ne, grad_ne)
-    f_Te = kinetic_profile(rhop_kp, Te, grad_Te)
-    f_pe = kinetic_profile(rhop_kp, pe, grad_pe)
+    # Make a pressure profile object
+    p_pe_pf = create_pe(p_ne_pf, p_Te_pf)
+
+    # Do the same for the fits - will be especially useful for calculating errors using the bootsrapping technique
+    f_ne = kinetic_profile(rhop_kp, ne, grad_ne, shot, tmin, tmax)
+    f_Te = kinetic_profile(rhop_kp, Te, grad_Te, shot, tmin, tmax)
+    f_pe = kinetic_profile(rhop_kp, pe, grad_pe, shot, tmin, tmax)
+
+
+
+    #################################
+
+    ### compute fit uncertainties ###
+
+    #################################
+
+
+    # Choose whether you want to just take a fraction of the profile, or an alternative "bootstrapping" technique - other options could be explored, especially with more sophisticated fit tools
 
     if frac_err: # this just takes a fraction of the profile as the errorbar
         ne_std = ne*0.2 # 20% -- tanh fitting not set up to provide good uncertainties
@@ -715,20 +475,30 @@ def get_cmod_kin_profs(shot, tmin, tmax, geqdsk=None, pre_shift_TS=False, force_
         f_pe.fit_std, f_pe.grad_fit_std = pe_std, grad_pe_std
        
 
-    else: # this uses a MC perturbation technique to calculate the error
-        f_ne.perturb_mc_err(p_ne, num_mc, maxfev, ped_width, nereg, geqdsk, ne=True, verbose=False, plot=False)
-        f_Te.perturb_mc_err(p_Te, num_mc, maxfev, ped_width, Tereg, geqdsk, ne=False, verbose=False, plot=False)
-        f_pe.perturb_mc_err(p_pe, num_mc, maxfev, ped_width, pereg, geqdsk, ne=False, verbose=False, plot=False)
+    else: # this uses a MC perturbation technique, called "bootstrapping" to calculate the error - reference: Aaron Michael Rosenthal. Experimental Studies of Neutral Particle Effects 
+                                                                                                            # on Edge Transport Barriers in Tokamaks Using the Lyman-alpha Measurement Apparatus (thesis)
+
+        # In short, this technique perturbs the experimental data about its uncertainty and then refits "num_mc" times. This fit distribution is then used to calculate the error using the standard deviation
+
+        # it also does this to calculate error in the gradients, so fetch equilibrium info to calculate these
+        # in real space instead of rho_p
+        f_ne.fetch_equilibrium()
+        f_Te.fetch_equilibrium()
+        f_pe.fetch_equilibrium()
+
+        f_ne.perturb_mc_err(p_ne, num_mc, maxfev, ped_width, nereg, ne=True, verbose=False, plot=False)
+        f_Te.perturb_mc_err(p_Te, num_mc, maxfev, ped_width, Tereg, ne=False, verbose=False, plot=False)
+        f_pe.perturb_mc_err(p_pe, num_mc, maxfev, ped_width, pereg, ne=False, verbose=False, plot=False)
             
 
-        # now refit the mean and save coefficients of mean
+        # Now, refit the mean and save coefficients of mean - in case one is interested in a "mean fit"
     
-        ne_mean_fit, ne_mean_popt, ne_mean_perr, ne_mean_chisqr = fit_profiles.best_osbourne(rhop_kp, f_ne.fit_mean, vals_unc=f_ne.fit_std, x_out=f_ne.x, maxfev=maxfev, reg=nereg, edge_chi=edge_chi, ped_width=ped_width, ne=True)
-        Te_mean_fit, Te_mean_popt, Te_mean_perr, Te_mean_chisqr = fit_profiles.best_osbourne(rhop_kp, f_Te.fit_mean, vals_unc=f_Te.fit_std, x_out=f_Te.x, maxfev=maxfev, reg=Tereg, edge_chi=edge_chi, ped_width=ped_width, ne=False)
-        pe_mean_fit, pe_mean_popt, pe_mean_perr, pe_mean_chisqr = fit_profiles.best_osbourne(rhop_kp, f_pe.fit_mean, vals_unc=f_pe.fit_std, x_out=f_pe.x, maxfev=maxfev, reg=pereg, edge_chi=edge_chi, ped_width=ped_width, ne=False)
+        ne_mean_fit, ne_mean_popt, ne_mean_perr, ne_mean_chisqr = fp.best_osbourne(rhop_kp, f_ne.fit_mean, vals_unc=f_ne.fit_std, x_out=f_ne.x, maxfev=maxfev, reg=nereg, edge_chi=edge_chi, ped_width=ped_width, ne=True)
+        Te_mean_fit, Te_mean_popt, Te_mean_perr, Te_mean_chisqr = fp.best_osbourne(rhop_kp, f_Te.fit_mean, vals_unc=f_Te.fit_std, x_out=f_Te.x, maxfev=maxfev, reg=Tereg, edge_chi=edge_chi, ped_width=ped_width, ne=False)
+        pe_mean_fit, pe_mean_popt, pe_mean_perr, pe_mean_chisqr = fp.best_osbourne(rhop_kp, f_pe.fit_mean, vals_unc=f_pe.fit_std, x_out=f_pe.x, maxfev=maxfev, reg=pereg, edge_chi=edge_chi, ped_width=ped_width, ne=False)
     
-        plot_fit = False
         if plot_fit:
+
             fig, ax = plt.subplots(2, sharex=True)
             ax[0].errorbar(p_ne.X[:,0], p_ne.y, yerr=p_ne.err_y, fmt='o', label='raw')
             ax[0].plot(f_ne.x, f_ne.y, lw=2.5, label='fit')
@@ -738,108 +508,51 @@ def get_cmod_kin_profs(shot, tmin, tmax, geqdsk=None, pre_shift_TS=False, force_
             ax[1].plot(f_Te.x, f_Te.y, lw=2.5)
             ax[1].plot(f_Te.x, f_Te.fit_mean, lw=2.5)
 
-            #ax[0].legend(['raw','fit','mean_fit'])
             ax[0].legend(loc='best', fontsize=14)
 
             ax[1].set_xlabel('$\\rho_{p}$')
             ax[0].set_ylabel('$n_{e} (10^{20} m^{-3})$')
             ax[1].set_ylabel('$T_{e} (eV)$')
 
-    # make a pressure profile object
-    p_ne_pf = build_profile_prefilter(ne_X_nofilters, ne_Y_nofilters, ne_unc_Y_nofilters, 'ne')
-    p_Te_pf = build_profile_prefilter(Te_X_nofilters, Te_Y_nofilters, Te_unc_Y_nofilters, 'Te')
-    p_pe_pf = create_pe(p_ne_pf, p_Te_pf)
 
-    # store fit coefficients
+    ###############################################
   
+    ### store fits, plot, and prepare data for outputs ###
+
+    ###############################################
+  
+    # store fit coefficients
     f_ne.save_coefs(ne_popt, ne_mean_popt)
     f_Te.save_coefs(Te_popt, Te_mean_popt)
     f_pe.save_coefs(pe_popt, pe_mean_popt)
  
-    # one last filter if there are probe points stored
-    if p_ne_p is not None:
-        ne_probe_X = copy.deepcopy(p_ne_p.X)
-        Te_probe_X = copy.deepcopy(p_Te_p.X)
-        
-        ne_X_before_filter = ne_probe_X
-        Te_X_before_filter = Te_probe_X
+    # remove artificial point
+    p_ne.remove_points(p_ne.X[:,0]>1.1)
+    p_Te.remove_points(p_Te.X[:,0]>1.1)
 
-        p_ne.remove_points(p_ne.X[:,0]>1.1) # remove artificial point
-        p_Te.remove_points(p_Te.X[:,0]>1.1) # remove artificial point
-    
-        ne_X_after_filter = p_ne.X[:,0]
-        Te_X_after_filter = p_ne.X[:,0]
-
-        ne_pts_removed = np.setdiff1d(ne_X_before_filter, ne_X_after_filter)
-        Te_pts_removed = np.setdiff1d(Te_X_before_filter, Te_X_after_filter)
-
-        ne_probe_pts_removed = len(np.intersect1d(ne_probe_X, ne_pts_removed))
-        Te_probe_pts_removed = len(np.intersect1d(Te_probe_X, Te_pts_removed))
-
-        num_ne_SP -= ne_probe_pts_removed
-        num_Te_SP -= Te_probe_pts_removed
-
-    else:
-        # simple filter 
-        p_ne.remove_points(p_ne.X[:,0]>1.1) # remove artificial point
-        p_Te.remove_points(p_Te.X[:,0]>1.1) # remove artificial point
-    
-    #ne_X_after = p_ne.X[:,0] - (1 - xSep_all)
-    #Te_X_after = p_Te.X[:,0] - (1 - xSep_all)
-    
-    #ne_pts_removed = np.setdiff1d(ne_X_before,ne_X_after)
-    #Te_pts_removed = np.setdiff1d(Te_X_before,Te_X_after)
-  
-    #if p_ne_p is not None:
-    #    for pt in ne_pts_removed:
-    #        if pt in p_ne_p.X:
-    #            num_ne_SP -= 1
-    #    for pt in Te_pts_removed:
-    #        if pt in p_Te_p.X:
-    #            num_Te_SP -= 1
-
-    nu_star = calc_nu_star(ne, Te)
-
-    # PFS this is the lfag I use to plot the fits - probably should have this farther up / an argument to the function
-
-    plot_fit = True
-    if plot_fit:
-        p_ne.plot_data()
-        #plt.xlim([0.86,1.16])
-        #plt.ylim([-0.01, 0.75])
-        plt.gca().plot(rhop_kp, ne)
-        #plt.legend(['super_fit', 'super_fit_osborne'])
-
-        p_Te.plot_data()
-        #plt.xlim([0.86,1.16])
-        #plt.ylim([-0.01, 0.5])
-        plt.gca().plot(rhop_kp, Te)
-        #plt.legend(['super_fit', 'super_fit_osborne'])
-        
-        p_pe.plot_data()
-        #plt.xlim([0.86,1.16])
-        #plt.ylim([-0.01, 0.75])
-        plt.gca().plot(rhop_kp, pe)
-
-    num_SP = {}
-    num_SP_nf = {}
-    num_SP['ne'] = num_ne_SP; num_SP['Te'] = num_Te_SP
-    num_SP_nf['ne'] = num_ne_SP_nofilter; num_SP_nf['Te'] = num_Te_SP_nofilter
-
-    # check if there exist any data point in the SOL
+    # check if there exist any data points in the SOL
     if np.all(p_ne.X[:,0]<0.99):
-        #raise ValueError(f'No ne data points  for r/a<0.99 in shot {shot}!')
         print(f'No SOL ne data points for r/a>0.99 in shot {shot}!')
     if np.all(p_Te.X[:,0]<0.99):
-     
-        #raise ValueError(f'No SOL Te data points for r/a<0.99 in shot {shot}!')
-        print(f'No SOL Te data points for r/a>0.99 in shot {shot}!')
+             print(f'No SOL Te data points for r/a>0.99 in shot {shot}!')
 
-    # there's been another filter, so before returning things, recreate the pe profile
+    # Create a pressure object in case there is interest in returning the filtered raw data, rather than the unfiltered (current setting)
     p_pe = create_pe(p_ne, p_Te)  
+
+
+    if plot_fit:
+        p_ne.plot_data()
+        plt.gca().plot(rhop_kp, ne)
+
+        p_Te.plot_data()
+        plt.gca().plot(rhop_kp, Te)
+        
+        p_pe.plot_data()
+        plt.gca().plot(rhop_kp, pe)
+
     
-    # output fits + profiletool objects for ne and Te so that experimental data points are passed too
-    return f_ne, f_Te, f_pe, p_ne_pf, p_Te_pf, p_pe_pf, num_SP_nf 
+    # output fits + profiletools objects for ne and Te so that experimental data points are passed too
+    return f_ne, f_Te, f_pe, p_ne_pf, p_Te_pf, p_pe_pf
 
             
 
@@ -869,6 +582,9 @@ def prefit_filter(p_ne, p_Te, TS=True):
         p_Te.y[p_Te.y<=0.01] = 0.01 # 10 eV
         p_ne.err_y[p_ne.err_y<=0.1] = 0.1 # 10^19 m^-3
         p_Te.err_y[p_Te.err_y<=0.02] = 0.02 # 20 eV
+
+    # Cleanup of low Te values
+    p_Te.remove_points(np.logical_and(p_Te.X[:,0]<1.03, p_Te.y<0.015))  # TS Te should be >15 eV inside near SOL - may want to check whether this is true
 
     # remove points with excessively large error bars
     p_ne.remove_points(p_ne.err_y>1) # 10^20 m^-3
@@ -1071,6 +787,106 @@ def build_profile_prefilter(X, y, y_err, kp):
     p.add_data(X,y,err_y=y_err)
 
     return p
+
+
+def assemble_dict_for_2pm(shot, tmin, tmax,
+                            ne_rhop, ne_R, ne, ne_unc,
+                            Te_rhop, Te_R, Te, Te_unc,
+                            prefer_pradmain):
+
+    sep_dict['ne_R'] = ne_R
+    sep_dict['Te_R'] = Te_R
+
+    sep_dict['ne_raw'] = ne*1e14 # in cm^-3
+    sep_dict['Te_raw'] = Te*1e3 # in eV
+    
+    sep_dict['ne_raw_unc'] = ne_unc*1e14 # in cm^-3
+    sep_dict['Te_raw_unc'] = Te_unc*1e3 # in eV
+   
+    # Find the separatrix position by interpolating onto the rho_poloidal grid
+    # Note: this likely does not need to be super precise since it will just be a guess given to the separatrix finder used later
+    sep_dict['R_sep'] = interp1d(ne_rhop, ne_R)(1)
+
+
+    ## Now collect other shot info to pass into 2-point model estimate
+
+    # q95
+    t,ddata = get_CMOD_var(var='q95', shot=shot, return_time=True)
+    if ddata is not None and np.any(~np.isnan(ddata)):
+        q95 = np.mean(ddata[np.argmin(np.abs(t-tmin)):np.argmin(np.abs(t-tmax))])
+    else:
+        q95 = np.nan
+    sep_dict['q95'] = q95
+    
+    # Bp
+    t,ddata = get_CMOD_var(var='Bp', shot=shot, return_time=True)
+    if ddata is not None and np.any(~np.isnan(ddata)):
+        Bp = np.mean(ddata[np.argmin(np.abs(t-tmin)):np.argmin(np.abs(t-tmax))])
+    else:
+        Bp = np.nan
+    sep_dict['Bp'] = Bp
+
+    # Bt
+    t,ddata = get_CMOD_var(var='Bt', shot=shot, return_time=True)
+    if ddata is not None and np.any(~np.isnan(ddata)):
+        Bt = np.mean(ddata[np.argmin(np.abs(t-tmin)):np.argmin(np.abs(t-tmax))])
+    else:
+        Bt = np.nan
+    sep_dict['Bt'] = Bt
+    
+    # P_oh
+    t,ddata = get_CMOD_var(var='P_oh', shot=shot, return_time=True)
+    if ddata is not None and np.any(~np.isnan(ddata)):
+        P_oh = np.mean(ddata[np.argmin(np.abs(t-tmin)):np.argmin(np.abs(t-tmax))])
+    else:
+        P_oh = np.nan
+    
+    # P_RF
+    t,ddata = get_CMOD_var(var='P_RF', shot=shot, return_time=True)
+    if ddata is not None and np.any(~np.isnan(ddata)):
+        P_RF = np.mean(ddata[np.argmin(np.abs(t-tmin)):np.argmin(np.abs(t-tmax))])
+    else:
+        P_RF = np.nan
+        
+    # dW_dt
+    ddata = get_CMOD_var(var='dWdt', shot=shot, tmin=tmin, tmax=tmax, return_time=False)
+    dWdt = np.mean(ddata)
+
+
+    # P_rad_main
+    t,ddata = get_CMOD_var(var='P_rad_main', shot=shot, return_time=True)
+    if ddata is not None and np.any(~np.isnan(ddata)):
+        P_rad_main = np.mean(ddata[np.argmin(np.abs(t-tmin)):np.argmin(np.abs(t-tmax))])
+    else:
+        P_rad_main = np.nan
+
+    # P_rad_diode
+    t,ddata = get_CMOD_var(var='P_rad_diode', shot=shot, return_time=True)
+    if ddata is not None and np.any(~np.isnan(ddata)):
+        P_rad_diode = np.mean(ddata[np.argmin(np.abs(t-tmin)):np.argmin(np.abs(t-tmax))])
+    else:
+        P_rad_diode = np.nan
+
+    prefer_pradmain = True # should be able to be switched
+
+    if prefer_pradmain:
+        P_rad = P_rad_main
+
+        if np.isnan(P_rad_main):
+            P_rad = P_rad_diode
+            print('P_rad_main not available - using P_rad_diode')
+
+        else:
+            print('Using P_rad_main')
+
+    else:
+        P_rad = P_rad_diode
+        print('Using P_rad_diode')
+
+
+    sep_dict['P_net'] = P_oh + P_RF - dWdt - P_rad
+
+    return sep_dict
 
 
 def fetch_edge_probes(shot, time, Te_sep_eV, geqdsk=None, rhop_min=0.995, rhop_max=1.05, probes=['A'], max_ne_cm3=5e13, shift_probes=True):
@@ -1323,10 +1139,10 @@ def fetch_edge_probes(shot, time, Te_sep_eV, geqdsk=None, rhop_min=0.995, rhop_m
 
         try:
             # now, based on this exponential, find location of the LCFS        
-            if efit_sep:
-                xSep_ASP = 1
-            else:
+            if shift_profiles:
                 xSep_ASP = interp1d(Te_keV_ASP_fit, x_out, bounds_error=True)(Te_sep_eV*1e-3)
+            else:
+                xSep_ASP = 1
             print(f'Shifting of ASP data from fit, in rhop units: {1-xSep_ASP:.4f}')
 
             # shift both ne and Te data
@@ -1347,11 +1163,11 @@ def fetch_edge_probes(shot, time, Te_sep_eV, geqdsk=None, rhop_min=0.995, rhop_m
 
         try:
             # now, based on this exponential, find location of the LCFS        
-            if efit_sep:
-                xSep_FSP = 1
+            if shift_profiles:
+                xSep_FSP = interp1d(Te_keV_FSP_fit, x_out, bounds_error=True)(Te_sep_eV*1e-3)
             else:
                 #xSep_FSP = fit_2D.shift_profs([1],X_TS_fit,Te_TS_fit[None,:]*1e3,Te_LCFS=Te_sep_eV)
-                xSep_FSP = interp1d(Te_keV_FSP_fit, x_out, bounds_error=True)(Te_sep_eV*1e-3)
+                xSep_FSP = 1
             print(f'Shifting of FSP data from fit, in rhop units: {1-xSep_FSP:.4f}')
             
             # shift both ne and Te data
@@ -1827,7 +1643,7 @@ def identify_mode(shot):
     return mode
 
 
-def get_fit_gradient(y, c, rhop, fit_type, geqdsk, grad_type='analytic', out='rvol', reg=None, plot=True):
+def get_fit_gradient(y, c, rhop, fit_type, eq, tmin, tmax, grad_type='analytic', wrt='R', reg=None, plot=True):
     '''Function to do X
 
     This function does X by doing Y   
@@ -1847,38 +1663,23 @@ def get_fit_gradient(y, c, rhop, fit_type, geqdsk, grad_type='analytic', out='rv
     x = rhop
     
     # compute derivatives of different coordinates for ease - let's use R as the base
-    
-    #Rsep = aurora.rad_coord_transform(1.0, 'r/a', 'Rmid', geqdsk)
-    #rminor = Rsep - geqdsk['RMAXIS'] 
-    #R = roa * rminor + geqdsk['RMAXIS']
-    #rhop = aurora.get_rhop_RZ(R, np.zeros_like(R), geqdsk)
-    
-    import single_shot as ss
-    _rvol, _rhop = ss.get_rvol(geqdsk, dr0=0.03, dr1=0.03)
-    rvol = interp1d(_rhop, _rvol, fill_value='extrapolate')(rhop)
-    psin = rhop**2
-    
-    from scipy.interpolate import UnivariateSpline
-    mp_ind = np.where(geqdsk['AuxQuantities']['Z'] == 0)[0][0]
-    R_mp = geqdsk['AuxQuantities']['R']
-    rhop_mp = geqdsk['AuxQuantities']['RHOpRZ'][mp_ind]
-    R0 = geqdsk['RMAXIS']
-    omp = R_mp > R0
-    R = UnivariateSpline(rhop_mp[omp], R_mp[omp])(rhop)
+    R = eq.rho2rho('sqrtpsinorm', 'Rmid', rhop, (tmin + tmax)/2)
+    # not yet coded: psin = 
+    # not yet coded: rvol = 
 
     if grad_type == 'analytic':
 
-        if fit_type == 'osborne': grad = fit_profiles.Osbourne_Tanh_gradient(x, c, reg=reg)
-        if fit_type == 'superfit': grad = fit_profiles.mtanh_profile_gradient(x, edge=c[0], ped=c[1], core=c[2], expin=c[3], expout=c[4], widthp=c[5], xphalf=c[6])
+        if fit_type == 'osborne': grad = fp.Osbourne_Tanh_gradient(x, c, reg=reg)
+        if fit_type == 'superfit': grad = fp.mtanh_profile_gradient(x, edge=c[0], ped=c[1], core=c[2], expin=c[3], expout=c[4], widthp=c[5], xphalf=c[6])
 
     else:
         grad = np.gradient(y)
 
     # jacobians
-    if out == 'rhop': jacobian = np.ones(len(rhop))
-    if out == 'R': jacobian = np.gradient(rhop, R)
-    if out == 'psin': jacobian = np.gradient(rhop, psin)
-    if out == 'rvol': jacobian = np.gradient(rhop, rvol)
+    if wrt == 'R': jacobian = np.gradient(rhop, R)
+    if wrt == 'rhop': jacobian = np.ones(len(rhop))
+    if wrt == 'psin': jacobian = np.gradient(rhop, psin)
+    if wrt == 'rvol': jacobian = np.gradient(rhop, rvol)
 
     if plot:
 
@@ -1893,13 +1694,23 @@ class kinetic_profile:
 
     # small class to store results from fits so that we can do monte carlo error estimation more easily
     
-    def __init__(self, x, y, grad_y):
+    def __init__(self, x, y, grad_y, shot, tmin, tmax):
 
         self.x = x
         self.y = y
         self.grad_y = grad_y
+        self.shot = shot
+        self.tmin = tmin
+        self.tmax = tmax
 
-    def perturb_mc_err(self, raw, num_mc, maxfev, ped_width, reg, geqdsk, ne=True, verbose=True, plot=False):
+    def fetch_equilibrium(self):
+
+        try:
+            self.eq = eqtools.CModEFITTree(int(self.shot), tree='EFIT20', length_unit='m')
+        except:
+            self.eq = eqtools.CModEFITTree(int(self.shot), tree='analysis', length_unit='m')
+
+    def perturb_mc_err(self, raw, num_mc, maxfev, ped_width, reg, ne=True, verbose=True, plot=False):
         
         err = raw.err_y
 
@@ -1929,10 +1740,10 @@ class kinetic_profile:
             new_pts = raw.y + np.random.normal(scale=raw.err_y)
     
             try:
-                _out = fit_profiles.best_osbourne(raw.X[:,0], new_pts, vals_unc=raw.err_y, x_out=self.x, maxfev=maxfev, reg=reg, ped_width=ped_width, ne=ne)
+                _out = fp.best_osbourne(raw.X[:,0], new_pts, vals_unc=raw.err_y, x_out=self.x, maxfev=maxfev, reg=reg, ped_width=ped_width, ne=ne)
 
                 fit_dist[ii], popt, perr, xsqr_dist[ii] = _out
-                grad_fit_dist[ii] = get_fit_gradient(fit_dist[ii], popt, self.x, 'osborne', geqdsk, grad_type='analytic', out='R', reg=reg, plot=False)
+                grad_fit_dist[ii] = get_fit_gradient(fit_dist[ii], popt, self.x, 'osborne', self.eq, self.tmin, self.tmax, grad_type='analytic', wrt='R', reg=reg, plot=False)
 
                 if verbose: 
                     print('MC iteration {}'.format(ii), 'XSQR = {:.3f}'.format(xsqr_dist[ii]))
@@ -1947,7 +1758,8 @@ class kinetic_profile:
                     grad_fit_dist[inf_vals_gfd] = np.nan
     
  
-            except:
+            except Exception as e:
+                print(e)
                 placeholder = np.empty(self.x.shape)
                 placeholder[:] = np.nan
                 
@@ -3096,7 +2908,7 @@ def get_fourier_spectra(time, data, n_samples, plot=False):
 
     return xf[1:N//2], 2.0/N*np.abs(yf[1:N//2])
 
-
+    
 def compare_ts_tci(shot, tmin, tmax, nl_num=4, plot=False):
 
     nl_ts1 = 1e32
@@ -3356,24 +3168,46 @@ def map_ts2tci(shot, tmin, tmax, nl_num=4):
     # just use one equilbrium point to perform the mapping - therefore, want to pass in t_min and t_max # this will likely introduce a significant 
     # error in parts of the shot that do not have the same equilbria, so only trust the resulting integrals within the t_min and t_max bounds
 
-    # maybe what's done in profiletools is a solution to this - look into it
-
+    #commented out the old method using geqdsk
+    '''
     time_efit = (tmin + tmax)/2 # just an average
 
     geqdsk = get_geqdsk_cmod(
-        shot, time_efit*1e3, gfiles_loc = '/home/millerma/lya/gfiles/')
+        shot, time_efit*1e3)
 
     rhop_ts = np.transpose(aurora.get_rhop_RZ(r_ts, z_ts, geqdsk))
     psin_ts = rhop_ts**2
-    psin_ts = np.tile(psin_ts, (n_ts,1)) # only doing this because I just have one geqdsk!
 
-    m_tci = 101
+    print('psin_ts')
+    print(psin_ts)
+
+    psin_ts = np.tile(psin_ts, (n_ts,1)) # only doing this because I just have one geqdsk!
+    '''
+
+    # New method using eqtools
+    #gets the magnetic equilibrium at every time point - note EFIT20 is the TS timebase
+    try: # EFIT20 only exists for shots from certain years
+        e = eqtools.CModEFITTree(int(shot), tree='EFIT20', length_unit='m')
+    except:
+        e = eqtools.CModEFITTree(int(shot), tree='analysis', length_unit='m')
+    r_ts = np.full(len(z_ts), r_ts) #just to make r_ts the same length as z_ts
+    psin_ts = e.rho2rho('RZ', 'psinorm', r_ts, z_ts, t=t_ts, each_t = True)
+
+
+    m_tci = 501 # Had to increase this from 101 to make the interpolation work in i, j loop coming up
     z_tci = -0.4 + 0.8*np.linspace(1,m_tci-1,m_tci)/np.float(m_tci - 1) ## What is findgen?
     r_tci = r_tci[nl_num-1] + np.zeros(m_tci)
 
+
+    #Old geqdsk method commented out below
+    '''
     rhop_tci = np.transpose(aurora.get_rhop_RZ(r_tci, z_tci, geqdsk))
     psin_tci = rhop_tci**2
     psin_tci = np.tile(psin_tci, (n_ts,1)) # only doing this because I just have one geqdsk!
+    '''
+
+    #New method using eqtools here
+    psin_tci = e.rho2rho('RZ', 'psinorm', r_tci, z_tci, t=t_ts, each_t = True)
 
 
     # perform mapping
@@ -3509,28 +3343,28 @@ def get_ts_tci_ratio(shot, tmin, tmax, plot=False):
     return mult_factor
 
 
-def get_Bpol_RZ(shot, tmin, tmax, R, Z, gfile_name=None):
+def get_B_RZ(shot, tmin, tmax, R, Z, gfile_name=None):
 
     # adapted from Grant Rutherford's plotMagneticField2D.py script in /home/millerma/poloidalFieldGetter
-    
-    if gfile_name is None:
-
-        time = (tmax + tmin)/2
-        _, gfile_name = get_geqdsk_cmod(shot, time*1e3, gfiles_loc='/home/millerma/lya/gfiles/', return_fname=True)
-    
-
+   
+    time = (tmin + tmax)/2 
+    gfile_name = '/home/millerma/lya/gfiles/' + f'g{shot}.{str(int(time*1e3)).zfill(5)}'
     gfileDict = gfd(eqdskName=gfile_name)
     
     rgrid = gfileDict['rgrid']
     zgrid = gfileDict['zgrid']
     Br_grid = gfileDict['brrz']
+    Bt_grid = gfileDict['btrz']
     Bz_grid = gfileDict['bzrz']
            
     from scipy.interpolate import RectBivariateSpline 
     Bpol_strength = np.sqrt(np.square(Bz_grid) + np.square(Br_grid)) 
-    Bpol = RectBivariateSpline(zgrid,rgrid,Bpol_strength)(Z,R)[0][0]
+    Btor_strength = Bt_grid
 
-    return Bpol
+    Bpol = RectBivariateSpline(zgrid,rgrid,Bpol_strength)(Z,R)[0][0]
+    Btor = RectBivariateSpline(zgrid,rgrid,Btor_strength)(Z,R)[0][0]
+
+    return Bpol, Btor
 
 
 

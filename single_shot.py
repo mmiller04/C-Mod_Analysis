@@ -17,10 +17,18 @@ import aurora
 from IPython import embed
 from scipy import stats
 
+import sys
+sys.path.append('/home/sciortino/usr/python3modules/eqtools3')
+sys.path.append('/home/sciortino/usr/python3modules/gptools3')
+sys.path.append('/home/millerma/usr/profiletools3')
+import profiletools
+import eqtools
+
 
 # PFS this is a function to facilitate output for database work
-def assemble_fit_into_dict(shot,tmin,tmax,f_ne,f_Te,f_pe,
-                p_ne, p_Te, p_pe, geqdsk=None,
+def assemble_fit_into_dict(shot, tmin, tmax,
+                f_ne, f_Te, f_pe,
+                p_ne, p_Te, p_pe,
                 SOL_exp_decay=True, decay_from_LCFS=False): #W/cm^3
 
     ''' Process Lyman-alpha data for a single shot/time interval. 
@@ -50,8 +58,6 @@ def assemble_fit_into_dict(shot,tmin,tmax,f_ne,f_Te,f_pe,
         Electron density object containing experimental data from all loaded diagnostics.
     p_Te : profiletools object
         Electron temperature object containing experimental data from all loaded diagnostics.
-    geqdsk : dict
-        Dictionary containing processed geqdsk file
     SOL_exp_decay : bool
         If True, apply an exponential decay (fixed to 1cm length scale) in the region outside of the last radius covered by experimental data.
     decay_from_LCFS : bool
@@ -92,28 +98,20 @@ def assemble_fit_into_dict(shot,tmin,tmax,f_ne,f_Te,f_pe,
     pe_decay_len_SOL = 0.01 # m
 
     # transform coordinates:
-    if geqdsk is None:
-        geqdsk = cmod_tools.get_geqdsk_cmod(
-            shot, time*1e3, gfiles_loc = '/home/millerma/lya/gfiles/')
+    try: # EFIT20 only exists for shots from certain years
+        e = eqtools.CModEFITTree(int(shot), tree='EFIT20', length_unit='m')
+    except:
+        e = eqtools.CModEFITTree(int(shot), tree='analysis', length_unit='m')
+    time = (tmin + tmax)/2
 
     rhop_kp = f_ne.x
 
-    from scipy.interpolate import UnivariateSpline
-    mp_ind = np.where(geqdsk['AuxQuantities']['Z'] == 0)[0][0]
-    R_mp = geqdsk['AuxQuantities']['R']
-    rhop_mp = geqdsk['AuxQuantities']['RHOpRZ'][mp_ind]
-    R0 = geqdsk['RMAXIS']
-    omp = R_mp > R0
-    R_kp = UnivariateSpline(rhop_mp[omp], R_mp[omp])(rhop_kp) 
-    #R_kp = aurora.rad_coord_transform(rhop_kp, 'rhop', 'Rmid', geqdsk)
-    
-    Rsep = aurora.rad_coord_transform(1.0, 'rhop', 'Rmid', geqdsk)
-    rminor = Rsep - geqdsk['RMAXIS'] # minor radius at the midplane
+    R_kp = e.rho2rho('sqrtpsinorm', 'Rmid', rhop_kp, time)
+    Rsep = e.rho2rho('sqrtpsinorm', 'Rmid', 1, time)
     
     # exponential decays of kinetic profs from last point of experimental data:
     # ne and Te profiles can miss last point depending on filtering?
     max_rhop_expt = np.maximum(np.max(p_ne.X[:,0]), np.max(p_Te.X[:,0]))  
-    #max_rhop_expt = aurora.get_rhop_RZ(geqdsk['RMAXIS']+max_roa_expt*rminor, 0., geqdsk)
     print('Experimental TS data extending to rhop={:.4}'.format(max_rhop_expt))
 
     indLCFS = np.argmin(np.abs(R_kp - Rsep))
@@ -200,22 +198,25 @@ def assemble_fit_into_dict(shot,tmin,tmax,f_ne,f_Te,f_pe,
     # output results in a dictionary, to allow us to add/subtract keys in the future
     res = {'fit':{}}
     out = res['fit']
-    res['geqdsk'] = geqdsk  # also save geqdsk and shot number in results dictionary
     res['shot'] = shot
+    res['eq'] = e 
     
     # interpolate kinetic profiles on emissivity radial grid
     ped_start, ped_end = 0.7, 1.05
-    min_R = aurora.rad_coord_transform(ped_start, 'rhop', 'Rmid', geqdsk)
-    max_R = aurora.rad_coord_transform(ped_end, 'rhop', 'Rmid', geqdsk)
+    min_R = e.rho2rho('sqrtpsinorm', 'Rmid', ped_start, time)
+    max_R = e.rho2rho('sqrtpsinorm', 'Rmid', ped_end, time)
 
     # three different radius coordinates
     out['R'] = np.linspace(min_R, max_R, 1000)
-    out['r/a'] = (out['R'] - geqdsk['RMAXIS'])/rminor
-    out['rhop'] = aurora.get_rhop_RZ(out['R'], np.zeros_like(out['R']), geqdsk)
+    out['rhop'] = e.rho2rho('Rmid', 'sqrtpsinorm', out['R'], time)
 
-    # get rvol coordinate as well
+    # get rvol coordinate as well - this relies on aurora and geqdsk, so if there's interest, will try to see
+    # if there's a way to do this with eqtools
+
+    '''
     _rvol, _rhop = get_rvol(geqdsk, dr0=0.03, dr1=0.03)
     out['rvol'] = interp1d(_rhop, _rvol, fill_value='extrapolate')(out['rhop'])
+    '''
 
     # save profiles
     out['ne'] = np.exp(interp1d(rhop_kp,np.log(ne_av), bounds_error=False, fill_value=None)(out['rhop'])) # not sure why this is log? maybe it helps interpolation
@@ -239,7 +240,7 @@ def assemble_fit_into_dict(shot,tmin,tmax,f_ne,f_Te,f_pe,
     
 
 # PFS probably don't need this one either
-def assemble_raw_into_dict(shot,tmin,tmax, p_ne, p_Te, p_pe, geqdsk=None,
+def assemble_raw_into_dict(shot,tmin,tmax, p_ne, p_Te, p_pe,
                         SOL_exp_decay=True, decay_from_LCFS=False):
 
     ''' Process Lyman-alpha data for a single shot/time interval. 
@@ -257,8 +258,6 @@ def assemble_raw_into_dict(shot,tmin,tmax, p_ne, p_Te, p_pe, geqdsk=None,
         Electron density object containing experimental data from all loaded diagnostics.
     p_Te : profiletools object
         Electron temperature object containing experimental data from all loaded diagnostics.
-    geqdsk : dict
-        Dictionary containing processed geqdsk file
     SOL_exp_decay : bool
         If True, apply an exponential decay (fixed to 1cm length scale) in the region outside of the last radius covered by experimental data.
     decay_from_LCFS : bool
@@ -288,12 +287,13 @@ def assemble_raw_into_dict(shot,tmin,tmax, p_ne, p_Te, p_pe, geqdsk=None,
     '''
 
     # transform coordinates:
-    if geqdsk is None:
-        geqdsk = cmod_tools.get_geqdsk_cmod(
-            shot, time*1e3, gfiles_loc = '/home/millerma/lya/gfiles/')
+    try: # EFIT20 only exists for shots from certain years
+        e = eqtools.CModEFITTree(int(shot), tree='EFIT20', length_unit='m')
+    except:
+        e = eqtools.CModEFITTree(int(shot), tree='analysis', length_unit='m')
+    time = (tmin + tmax)/2
 
-    Rsep = aurora.rad_coord_transform(1.0, 'rhop', 'Rmid', geqdsk)
-    rminor = Rsep - geqdsk['RMAXIS'] # minor radius at the midplane
+    Rsep = e.rho2rho('sqrtpsinorm', 'Rmid', 1, time)
 
     # output results in a dictionary, to allow us to add/subtract keys in the future
     res = {'raw':{}}
@@ -342,29 +342,21 @@ def assemble_raw_into_dict(shot,tmin,tmax, p_ne, p_Te, p_pe, geqdsk=None,
     out['pe'] = np.maximum(out['pe'], Te_min)
 
     # map kps and emiss to midplane
-    from scipy.interpolate import UnivariateSpline
-    mp_ind = np.where(geqdsk['AuxQuantities']['Z'] == 0)[0][0]
-    R_mp = geqdsk['AuxQuantities']['R']
-    rhop_mp = geqdsk['AuxQuantities']['RHOpRZ'][mp_ind]
-    R0 = geqdsk['RMAXIS']
-    omp = R_mp > R0
-    rhop_to_R = UnivariateSpline(rhop_mp[omp], R_mp[omp])
 
-    out['R'] = rhop_to_R(out['rhop'])
-    out['ne_R'] = rhop_to_R(out['ne_rhop'])
-    out['Te_R'] = rhop_to_R(out['Te_rhop'])
-    out['pe_R'] = rhop_to_R(out['pe_rhop'])
-    
-    out['r/a'] = (out['R'] - geqdsk['RMAXIS'])/rminor
-    out['ne_r/a'] = (out['ne_R'] - geqdsk['RMAXIS'])/rminor
-    out['Te_r/a'] = (out['Te_R'] - geqdsk['RMAXIS'])/rminor
-    out['pe_r/a'] = (out['pe_R'] - geqdsk['RMAXIS'])/rminor
-    
+    out['R'] = e.rho2rho('sqrtpsinorm', 'Rmid', out['rhop'], time)
+    out['ne_R'] = e.rho2rho('sqrtpsinorm', 'Rmid', out['ne_rhop'], time)
+    out['Te_R'] = e.rho2rho('sqrtpsinorm', 'Rmid', out['Te_rhop'], time)
+    out['pe_R'] = e.rho2rho('sqrtpsinorm', 'Rmid', out['pe_rhop'], time)
+
+    # get rvol coordinate as well - this relies on aurora and geqdsk, so if there's interest, will try to see
+    # if there's a way to do this with eqtools
+    '''
     _rvol, _rhop = get_rvol(geqdsk, dr0=0.03, dr1=0.03)
     out['rvol'] = interp1d(_rhop, _rvol, fill_value='extrapolate')(out['rhop'])
     out['ne_rvol'] = interp1d(_rhop, _rvol, fill_value='extrapolate')(out['ne_rhop'])
     out['Te_rvol'] = interp1d(_rhop, _rvol, fill_value='extrapolate')(out['Te_rhop'])
     out['pe_rvol'] = interp1d(_rhop, _rvol, fill_value='extrapolate')(out['pe_rhop'])
+    '''
 
     return res
 
@@ -648,39 +640,30 @@ def plot_TS_overview(res, overplot_raw=False, Te_min=10., num_SP=None):
     fig.tight_layout()
 
 
-def plot_check_fits(res, geqdsk, Te_min=10., num_SP=None):
+def plot_check_fits(res,  Te_min=10.):
+    
+    try: # EFIT20 only exists for shots from certain years
+        e = eqtools.CModEFITTree(int(res['shot']), tree='EFIT20', length_unit='m')
+    except:
+        e = eqtools.CModEFITTree(int(res['shot']), tree='analysis', length_unit='m')
+    time = (tmin + tmax)/2
 
-    Rsep = aurora.rad_coord_transform(1.0, 'rhop', 'Rmid', geqdsk)
-
-    fig, ax = plt.subplots(1,3, sharex='col')
+    Rsep = e.rho2rho('sqrtpsinorm', 'Rmid', 1, time)
+    Rsep = res['eq'].rho2rho('sqrtpsinorm', 'Rmid', 1, time)
+    
+    fig, ax = plt.subplots(1,2, sharex='col')
         
     raw = res['raw']
     fit = res['fit']    
 
-    ne_ts_mask = raw['ne_rhop'] > np.min(fit['rhop'])
-    ne_sp_mask = raw['ne_rhop'] > np.min(fit['rhop']) 
-    if num_SP['ne'] == 0: 
-        ne_ts_mask[:] = True
-        ne_sp_mask[:] = False
-    else:
-        ne_ts_mask[-num_SP['ne']:] = False
-        ne_sp_mask[:-num_SP['ne']] = False
-    ax[0].errorbar(res['raw']['ne_rhop'][ne_ts_mask], res['raw']['ne'][ne_ts_mask], res['raw']['ne_unc'][ne_ts_mask], fmt='o', lw=2, c='b')
-    ax[0].errorbar(res['raw']['ne_rhop'][ne_sp_mask], res['raw']['ne'][ne_sp_mask], res['raw']['ne_unc'][ne_sp_mask], fmt='x', lw=2, c='b')
-    ax[0].plot(res['fit']['rhop'], res['fit']['ne'], c='b')
+    ne_mask = raw['ne_rhop'] > np.min(fit['rhop'])
+    ax[0].errorbar(res['raw']['ne_rhop'][ne_mask], res['raw']['ne'][ne_mask], res['raw']['ne_unc'][ne_mask], fmt='.', c='b', mec='b', mfc='w',zorder=1)
+    ax[0].plot(res['fit']['rhop'], res['fit']['ne'], lw=2, c='k',zorder=2)
     ax[0].set_ylabel(r'$n_e$')
 
-    Te_ts_mask = raw['Te_rhop'] > np.min(fit['rhop'])
-    Te_sp_mask = raw['Te_rhop'] > np.min(fit['rhop']) 
-    if num_SP['Te'] == 0: 
-        Te_ts_mask[:] = True
-        Te_sp_mask[:] = False
-    else:
-        Te_sp_mask[:-num_SP['Te']] = False
-        Te_sp_mask[:-num_SP['Te']] = False
-    ax[1].errorbar(res['raw']['Te_rhop'][Te_ts_mask], res['raw']['Te'][Te_ts_mask], res['raw']['Te_unc'][Te_ts_mask], fmt='o', c='r', lw=2)
-    ax[1].errorbar(res['raw']['Te_rhop'][Te_sp_mask], res['raw']['Te'][Te_sp_mask], res['raw']['Te_unc'][Te_sp_mask], fmt='x', c='r', lw=2)
-    ax[1].plot(res['fit']['rhop'], res['fit']['Te'], c='r')
+    Te_mask = raw['Te_rhop'] > np.min(fit['rhop'])
+    ax[1].errorbar(res['raw']['Te_rhop'][Te_mask], res['raw']['Te'][Te_mask], res['raw']['Te_unc'][Te_mask], fmt='.', c='r', mec='r', mfc='w',zorder=1)
+    ax[1].plot(res['fit']['rhop'], res['fit']['Te'], lw=2, c='k',zorder=2)
     ax[1].set_ylabel(r'$T_e$')
 
     kinmin_val = np.min(res['fit']['rhop'])
@@ -693,6 +676,7 @@ def plot_check_fits(res, geqdsk, Te_min=10., num_SP=None):
 
     ax[0].set_xlim([kinmin_val - 0.1, kinmax_val])
     ax[0].set_ylim([nemin_val, nemax_val])
+    ax[0].set_xlabel(r'$\rho_p$')
     
     ax[1].set_xlim([kinmin_val - 0.1, kinmax_val])
     ax[1].set_ylim([Temin_val, Temax_val])
@@ -738,14 +722,14 @@ if __name__=='__main__':
     #tmax = 0.9
 
     # mid H98, high ne L-mode
-    #shot = 1070816013
-    #tmin = 1.0
-    #tmax = 1.5
+    shot = 1070816013
+    tmin = 1.0
+    tmax = 1.1
 
     # test L-mode
-    shot = 1000830024
-    tmin = 0.6
-    tmax = 0.7
+    #shot = 1000830024
+    #tmin = 0.6
+    #tmax = 0.7
         
 
     ############
@@ -757,17 +741,14 @@ if __name__=='__main__':
  
     gfiles_loc = '/home/millerma/lya/gfiles/' # WILL WANT TO MODIFY THIS TO GRAB USERNAME OF WHOEVER IS RUNNING
 
-    # PFS not sure if we actually need the geqdsk tbh - will have to check on this
-    geqdsk = cmod_tools.get_geqdsk_cmod(shot,(tmin+tmax)/2.*1e3, gfiles_loc=gfiles_loc)
-
     import time
     start_time = time.time()
 
     # this is the call to grab TS data and fit it
-    kp_out = cmod_tools.get_cmod_kin_profs(shot, tmin, tmax, geqdsk = geqdsk, probes=['A','F'],
+    kp_out = cmod_tools.get_cmod_kin_profs(shot, tmin, tmax, probes=['A','F'],
                                            apply_final_sep_stretch=True, force_to_zero=force_to_zero,
                                            frac_err=False, num_mc=num_mc, core_ts_mult=False, edge_ts_mult=False) 
-    f_ne, f_Te, f_pe, p_ne, p_Te, p_pe, num_SP = kp_out
+    f_ne, f_Te, f_pe, p_ne, p_Te, p_pe = kp_out
 
     kp_time = time.time()
     print('Time for fits: ', kp_time - start_time)
@@ -775,12 +756,13 @@ if __name__=='__main__':
     time = (tmin+tmax)/2
 
     # used to output all the data - probably can streamline this
-    res = assemble_fit_into_dict(shot, tmin, tmax, f_ne, f_Te, f_pe, 
-                                    p_ne, p_Te, p_pe, geqdsk=geqdsk, 
+    res = assemble_fit_into_dict(shot, tmin, tmax, 
+                                    f_ne, f_Te, f_pe, 
+                                    p_ne, p_Te, p_pe,
                                     SOL_exp_decay=False)
 
     res_raw = assemble_raw_into_dict(shot, tmin, tmax, 
-                                        p_ne, p_Te, p_pe, geqdsk=geqdsk, 
+                                        p_ne, p_Te, p_pe, 
                                         SOL_exp_decay=False)
 
     res.update(res_raw)
@@ -789,7 +771,7 @@ if __name__=='__main__':
 
     ##### PLOT RESULTS #####
     
-    plot_check_fits(res, geqdsk, Te_min=Te_min, num_SP=num_SP)
+    plot_check_fits(res, Te_min=Te_min)
 
     # make some plots to check uncertainties - use dictionaries to plot
     kp_dict = {'ne':{}, 'grad_ne':{}, 'Te':{}, 'grad_Te':{}, 'pe':{}, 'grad_pe':{}}

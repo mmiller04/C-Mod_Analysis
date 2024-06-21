@@ -6,16 +6,17 @@ import matplotlib.pyplot as plt
 from scipy.constants import m_p, e as q_electron, Boltzmann as k_B
 from scipy.interpolate import interp1d
 import pickle as pkl, os
-from cmod_tools_eqtools import get_B_RZ
+import cmod_tools
 
 from scipy.constants import Boltzmann as kB, e as q_electron
 import aurora
 
+import sys
 sys.path.append('/home/sciortino/usr/python3modules/eqtools3')
 sys.path.append('/home/sciortino/usr/python3modules/gptools3')
 sys.path.append('/home/millerma/usr/profiletools3')
 import profiletools
-import eqtools as eq
+import eqtools 
 
 
 # PFS this is the wrapper for the 2-point model
@@ -79,15 +80,16 @@ def Teu_2pt_model(shot,tmin,tmax, lambdaq_opt=1, rhop_vec=None, ne=None, Te=None
     betat = cmod_tools.get_CMOD_var(var='betat',shot=shot, tmin=tmin, tmax=tmax, plot=False)
     p_Pa_vol_avg = (betat/100)*BTaxis**2.0/(2.0*4.0*np.pi*1e-7)   # formula used by D.Brunner
 
-    else:
-        raise ValueError('Undefined option for volume-averaged pressure')
 
-
-    # B fields at the LFS LCFS midplane
-    Rlcfs = eq.rho2rho('psinorm', 'Rmid', 1, time)
+    # B fields at the LFS LCFS midplane - need equilibrium information
+    try: # EFIT20 only exists for shots from certain years
+        e = eqtools.CModEFITTree(int(shot), tree='EFIT20', length_unit='m')
+    except:
+        e = eqtools.CModEFITTree(int(shot), tree='analysis', length_unit='m')
+    Rlcfs = e.rho2rho('psinorm', 'Rmid', 1, time)
     gfilename = '/home/millerma/lya/gfiles/' + f'g{shot}.{str(int(time*1e3)).zfill(5)}'
 
-    Bp, Bt = get_B_RZ(shot, tmin, tmax, Rlcfs, 0, gfilename)
+    Bp, Bt = cmod_tools.get_B_RZ(shot, tmin, tmax, Rlcfs, 0, gfilename)
 
     if lambdaq_opt==1:
         # now get 2-point model prediction
