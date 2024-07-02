@@ -1,3 +1,8 @@
+import MDSplus
+import eqtools
+import scipy
+
+
 class Profile(object):
     """Object to abstractly represent a profile.
     
@@ -667,117 +672,6 @@ class Channel(object):
         self.err_y = err_y
         self.T = T
     
-    def keep_slices(self, axis, vals, tol=None, keep_mixed=False):
-        """Only keep the indices closest to given `vals`.
-        
-        Parameters
-        ----------
-        axis : int
-            The column in `X` to check values on.
-        vals : float or 1-d array
-            The value(s) to keep the points that are nearest to.
-        keep_mixed : bool, optional
-            Set this flag to keep transformed quantities that depend on multiple
-            values of `X[:, :, axis]`. Default is False (drop mixed quantities).
-        
-        Returns
-        -------
-        still_good : bool
-            Returns True if there are still any points left in the channel,
-            False otherwise.
-        """
-        unique_vals = []
-        num_unique = []
-        for pt in self.X:
-            unique_vals += [scipy.unique(pt[:, axis])]
-            num_unique += [len(unique_vals[-1])]
-        if max(num_unique) > 1:
-            if keep_mixed:
-                return True
-            else:
-                return False
-        else:
-            # TODO: Make sure raveling doesn't have unexpected consequences...
-            unique_vals = scipy.asarray(unique_vals).ravel()
-            
-            keep_idxs = get_nearest_idx(vals, unique_vals)
-            if tol is not None:
-                keep_idxs = keep_idxs[
-                    scipy.absolute(unique_vals[keep_idxs] - vals) <= tol
-                ]
-            keep_idxs = scipy.unique(keep_idxs)
-            
-            self.X = self.X[keep_idxs, :, :]
-            self.y = self.y[keep_idxs]
-            self.err_X = self.err_X[keep_idxs, :, :]
-            self.err_y = self.err_y[keep_idxs]
-            self.T = self.T[keep_idxs, :]
-            
-            return True
-        
-    def average_data(self, axis=0, **kwargs):
-        """Average the data along the given `axis`.
-        
-        Parameters
-        ----------
-        axis : int, optional
-            Axis to average along. Default is 0.
-        **kwargs : optional keyword arguments
-            All additional kwargs are passed to :py:func:`average_points`.
-        """
-        reduced_X = scipy.delete(self.X, axis, axis=2)
-        reduced_err_X = scipy.delete(self.err_X, axis, axis=2)
-        self.X, self.y, self.err_X, self.err_y, self.T = average_points(
-            reduced_X,
-            self.y,
-            reduced_err_X,
-            self.err_y,
-            T=self.T,
-            **kwargs
-        )
-        self.X = scipy.expand_dims(self.X, axis=0)
-        self.y = scipy.expand_dims(self.y, axis=0)
-        self.err_X = scipy.expand_dims(self.err_X, axis=0)
-        self.err_y = scipy.expand_dims(self.err_y, axis=0)
-        self.T = scipy.expand_dims(self.T, axis=0)
-    
-    def remove_points(self, conditional):
-        """Remove points satisfying `conditional`.
-        
-        Parameters
-        ----------
-        conditional : array, same shape as `self.y`
-            Boolean array with True wherever a point should be removed.
-        
-        Returns
-        -------
-        bad_X : array
-            The removed `X` values.
-        bad_err_X : array
-            The uncertainty in the removed `X` values.
-        bad_y : array
-            The removed `y` values.
-        bad_err_y : array
-            The uncertainty in the removed `y` values.
-        bad_T : array
-            The transformation matrix of the removed `y` values.
-        """
-        keep_idxs = ~conditional
-        
-        bad_X = self.X[conditional, :, :]
-        bad_y = self.y[conditional]
-        bad_err_X = self.err_X[conditional, :, :]
-        bad_err_y = self.err_y[conditional]
-        bad_T = self.T[conditional, :]
-        
-        self.X = self.X[keep_idxs, :, :]
-        self.y = self.y[keep_idxs]
-        self.err_X = self.err_X[keep_idxs, :, :]
-        self.err_y = self.err_y[keep_idxs]
-        self.T = self.T[keep_idxs, :]
-        
-        return (bad_X, bad_err_X, bad_y, bad_err_y, bad_T)
-
 
 def ne(shot, include=['CTS', 'ETS'], TCI_quad_points=None, TCI_flag_threshold=None,
        TCI_thin=None, TCI_ds=None, **kwargs):
@@ -1297,6 +1191,4 @@ def TeTS(shot, **kwargs):
     Includes both core and edge system.
     """
     return Te(shot, include=['CTS', 'ETS'], **kwargs)
-
-
 
