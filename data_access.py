@@ -569,6 +569,216 @@ class BivariatePlasmaProfile(Profile):
 
 
 
+class Channel(object):
+    """Class to store data from a single channel.
+    
+    This is particularly useful for storing linearly transformed data, but
+    should work for general data just as well.
+    
+    Parameters
+    ----------
+    X : array, (`M`, `N`, `D`)
+        Abscissa values to use.
+    y : array, (`M`,)
+        Data values.
+    err_X : array, same shape as `X`
+        Uncertainty in `X`.
+    err_y : array, (`M`,)
+        Uncertainty in data.
+    T : array, (`M`, `N`), optional
+        Linear transform to get from latent variables to data in `y`. Default is
+        that `y` represents untransformed data.
+    y_label : str, optional
+        Label for the `y` data. Default is empty string.
+    y_units : str, optional
+        Units of the `y` data. Default is empty string.
+    """
+    def __init__(self, X, y, err_X=0, err_y=0, T=None, y_label='', y_units=''):
+        self.y_label = y_label
+        self.y_units = y_units
+        # Verify y has only one non-trivial dimension:
+        y = scipy.atleast_1d(scipy.asarray(y, dtype=float))
+        if y.ndim != 1:
+            raise ValueError(
+                "Dependent variables y must have only one dimension! Shape of y "
+                "given is %s" % (y.shape,)
+            )
+        
+        # Handle scalar error or verify shape of array error matches shape of y:
+        try:
+            iter(err_y)
+        except TypeError:
+            err_y = err_y * scipy.ones_like(y, dtype=float)
+        else:
+            err_y = scipy.asarray(err_y, dtype=float)
+            if err_y.shape != y.shape:
+                raise ValueError(
+                    "When using array-like err_y, shape must match shape of y! "
+                    "Shape of err_y given is %s, shape of y given is %s."
+                    % (err_y.shape, y.shape)
+                )
+        if (err_y < 0).any():
+            raise ValueError("All elements of err_y must be non-negative!")
+        
+        # Handle scalar independent variable or convert array input into matrix.
+        X = scipy.atleast_3d(scipy.asarray(X, dtype=float))
+        if T is None and X.shape[0] != len(y):
+            raise ValueError(
+                "Shape of independent variables must be (len(y), D)! "
+                "X given has shape %s, shape of y is %s."
+                % (X.shape, y.shape,)
+            )
+        
+        if T is not None:
+            # Promote T if it is a single observation:
+            T = scipy.atleast_2d(scipy.asarray(T, dtype=float))
+            if T.ndim != 2:
+                raise ValueError("T must have exactly 2 dimensions!")
+            if T.shape[0] != len(y):
+                raise ValueError("Length of first dimension of T must match length of y!")
+            if T.shape[1] != X.shape[1]:
+                raise ValueError("Second dimension of T must match second dimension of X!")
+        else:
+            T = scipy.eye(len(y))
+        
+        # Process uncertainty in X:
+        try:
+            iter(err_X)
+        except TypeError:
+            err_X = err_X * scipy.ones_like(X, dtype=float)
+        else:
+            err_X = scipy.asarray(err_X, dtype=float)
+            if err_X.ndim == 1 and X.shape[2] != 1:
+                err_X = scipy.tile(err_X, (X.shape[0], 1))
+        err_X = scipy.atleast_2d(scipy.asarray(err_X, dtype=float))
+        if err_X.shape != X.shape:
+            raise ValueError(
+                "Shape of uncertainties on independent variables must be "
+                "(len(y), self.X_dim)! X given has shape %s, shape of y is %s."
+                % (X.shape, y.shape,)
+            )
+        
+        if (err_X < 0).any():
+            raise ValueError("All elements of err_X must be non-negative!")
+        
+        self.X = X
+        self.y = y
+        self.err_X = err_X
+        self.err_y = err_y
+        self.T = T
+    
+    def keep_slices(self, axis, vals, tol=None, keep_mixed=False):
+        """Only keep the indices closest to given `vals`.
+        
+        Parameters
+        ----------
+        axis : int
+            The column in `X` to check values on.
+        vals : float or 1-d array
+            The value(s) to keep the points that are nearest to.
+        keep_mixed : bool, optional
+            Set this flag to keep transformed quantities that depend on multiple
+            values of `X[:, :, axis]`. Default is False (drop mixed quantities).
+        
+        Returns
+        -------
+        still_good : bool
+            Returns True if there are still any points left in the channel,
+            False otherwise.
+        """
+        unique_vals = []
+        num_unique = []
+        for pt in self.X:
+            unique_vals += [scipy.unique(pt[:, axis])]
+            num_unique += [len(unique_vals[-1])]
+        if max(num_unique) > 1:
+            if keep_mixed:
+                return True
+            else:
+                return False
+        else:
+            # TODO: Make sure raveling doesn't have unexpected consequences...
+            unique_vals = scipy.asarray(unique_vals).ravel()
+            
+            keep_idxs = get_nearest_idx(vals, unique_vals)
+            if tol is not None:
+                keep_idxs = keep_idxs[
+                    scipy.absolute(unique_vals[keep_idxs] - vals) <= tol
+                ]
+            keep_idxs = scipy.unique(keep_idxs)
+            
+            self.X = self.X[keep_idxs, :, :]
+            self.y = self.y[keep_idxs]
+            self.err_X = self.err_X[keep_idxs, :, :]
+            self.err_y = self.err_y[keep_idxs]
+            self.T = self.T[keep_idxs, :]
+            
+            return True
+        
+    def average_data(self, axis=0, **kwargs):
+        """Average the data along the given `axis`.
+        
+        Parameters
+        ----------
+        axis : int, optional
+            Axis to average along. Default is 0.
+        **kwargs : optional keyword arguments
+            All additional kwargs are passed to :py:func:`average_points`.
+        """
+        reduced_X = scipy.delete(self.X, axis, axis=2)
+        reduced_err_X = scipy.delete(self.err_X, axis, axis=2)
+        self.X, self.y, self.err_X, self.err_y, self.T = average_points(
+            reduced_X,
+            self.y,
+            reduced_err_X,
+            self.err_y,
+            T=self.T,
+            **kwargs
+        )
+        self.X = scipy.expand_dims(self.X, axis=0)
+        self.y = scipy.expand_dims(self.y, axis=0)
+        self.err_X = scipy.expand_dims(self.err_X, axis=0)
+        self.err_y = scipy.expand_dims(self.err_y, axis=0)
+        self.T = scipy.expand_dims(self.T, axis=0)
+    
+    def remove_points(self, conditional):
+        """Remove points satisfying `conditional`.
+        
+        Parameters
+        ----------
+        conditional : array, same shape as `self.y`
+            Boolean array with True wherever a point should be removed.
+        
+        Returns
+        -------
+        bad_X : array
+            The removed `X` values.
+        bad_err_X : array
+            The uncertainty in the removed `X` values.
+        bad_y : array
+            The removed `y` values.
+        bad_err_y : array
+            The uncertainty in the removed `y` values.
+        bad_T : array
+            The transformation matrix of the removed `y` values.
+        """
+        keep_idxs = ~conditional
+        
+        bad_X = self.X[conditional, :, :]
+        bad_y = self.y[conditional]
+        bad_err_X = self.err_X[conditional, :, :]
+        bad_err_y = self.err_y[conditional]
+        bad_T = self.T[conditional, :]
+        
+        self.X = self.X[keep_idxs, :, :]
+        self.y = self.y[keep_idxs]
+        self.err_X = self.err_X[keep_idxs, :, :]
+        self.err_y = self.err_y[keep_idxs]
+        self.T = self.T[keep_idxs, :]
+        
+        return (bad_X, bad_err_X, bad_y, bad_err_y, bad_T)
+
+
 def ne(shot, include=['CTS', 'ETS'], TCI_quad_points=None, TCI_flag_threshold=None,
        TCI_thin=None, TCI_ds=None, **kwargs):
     """Returns a profile representing electron density from both the core and edge Thomson scattering systems.
