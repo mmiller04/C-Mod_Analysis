@@ -1771,7 +1771,7 @@ class kinetic_profile:
 
 
         # now sort chisqr distributions and get rid of top 10%
-        num_mc_10p = np.int(np.ceil(num_mc/10))
+        num_mc_10p = int(np.ceil(num_mc/10))
 
         xsqr_inds = np.argsort(xsqr_dist)[-num_mc_10p:]
         keep_mask = np.ones(len(xsqr_dist), dtype=bool)
