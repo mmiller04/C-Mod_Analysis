@@ -40,5 +40,5 @@ To deactivat the environment, `source deactivate`
 
 2. Add/remove dependency
 `poetry add dependency==version`
-`poetry 
+`poetry remove dependency`
 If you ever run into an issue where poetry is hanging, hold ctrl+c to stop and then hit em with a `export PYTHON_KEYRING_BACKEND=keyring.backends.null.Keyring`
