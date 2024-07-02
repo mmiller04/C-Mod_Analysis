@@ -17,14 +17,14 @@ import aurora
 from IPython import embed
 from scipy import stats
 
-import sys
-sys.path.append('/home/cjperks/usr/python3modules/profiletools3')
-sys.path.append('/home/cjperks/usr/python3modules/eqtools3')
-sys.path.append('/home/cjperks/usr/python3modules/gptools3')
-sys.path.append('/home/cjperks/usr/python3modules/TRIPPy3')
+#import sys
+#sys.path.append('/home/cjperks/usr/python3modules/profiletools3')
+#sys.path.append('/home/cjperks/usr/python3modules/eqtools3')
+#sys.path.append('/home/cjperks/usr/python3modules/gptools3')
+#sys.path.append('/home/cjperks/usr/python3modules/TRIPPy3')
+
 import profiletools
 import eqtools
-
 
 # PFS this is a function to facilitate output for database work
 def assemble_fit_into_dict(shot, tmin, tmax,
@@ -738,10 +738,9 @@ if __name__=='__main__':
     Te_min = 10. #eV
 
     force_to_zero = True # helps constrain fits if there's not good SOL coverage
-    num_mc = 5 # to estimate fitting error
+    num_mc = 5 # to estimate fitting error - can probably speed this up jamie's method of repassing
+               # in fit parameters into new iteration and vectorizing
  
-    gfiles_loc = '/home/millerma/lya/gfiles/' # WILL WANT TO MODIFY THIS TO GRAB USERNAME OF WHOEVER IS RUNNING
-
     import time
     start_time = time.time()
 

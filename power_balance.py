@@ -11,10 +11,10 @@ import cmod_tools
 from scipy.constants import Boltzmann as kB, e as q_electron
 import aurora
 
-import sys
-sys.path.append('/home/sciortino/usr/python3modules/eqtools3')
-sys.path.append('/home/sciortino/usr/python3modules/gptools3')
-sys.path.append('/home/millerma/usr/profiletools3')
+#import sys
+#sys.path.append('/home/sciortino/usr/python3modules/eqtools3')
+#sys.path.append('/home/sciortino/usr/python3modules/gptools3')
+#sys.path.append('/home/millerma/usr/profiletools3')
 import profiletools
 import eqtools 
 

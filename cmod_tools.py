@@ -19,10 +19,10 @@ from scipy.optimize import curve_fit
 import aurora
 import sys
 # seems silly to need to do this - will try to figure out if there's a need or if one can just install their own copy
-sys.path.append('/home/cjperks/usr/python3modules/profiletools3')
-sys.path.append('/home/cjperks/usr/python3modules/eqtools3')
-sys.path.append('/home/cjperks/usr/python3modules/gptools3')
-sys.path.append('/home/cjperks/usr/python3modules/TRIPPy3')
+#sys.path.append('/home/cjperks/usr/python3modules/profiletools3')
+#sys.path.append('/home/cjperks/usr/python3modules/eqtools3')
+#sys.path.append('/home/cjperks/usr/python3modules/gptools3')
+#sys.path.append('/home/cjperks/usr/python3modules/TRIPPy3')
 import profiletools
 import eqtools
 
@@ -157,7 +157,6 @@ def get_cmod_kin_profs(shot, tmin, tmax, pre_shift_TS=False, force_to_zero=False
     ### Fetch data using profiletools ###
 
     #####################################
-
 
     try: # EFIT20 only exists for shots from certain years
         e = eqtools.CModEFIT.CModEFITTree(int(shot), tree='EFIT20', length_unit='m')
