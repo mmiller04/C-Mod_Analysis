@@ -36,7 +36,7 @@ poetry install
 
 This should automatically install everything.
 To activate the environment, `source .venv/bin/activate`
-To deactivat the environment, `source deactivate`
+To deactivate the environment, `source deactivate` or just `deactivate`, whichever works
 
 2. Add/remove dependency
 `poetry add dependency==version`
