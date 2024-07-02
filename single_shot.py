@@ -18,8 +18,9 @@ from IPython import embed
 from scipy import stats
 
 import sys
-sys.path.append('/home/sciortino/usr/python3modules/eqtools3')
-sys.path.append('/home/sciortino/usr/python3modules/gptools3')
+sys.path.append('/home/cjperks/usr/python3modules/eqtools3')
+sys.path.append('/home/cjperks/usr/python3modules/gptools3')
+sys.path.append('/home/cjperks/usr/python3modules/TRIPPy3')
 sys.path.append('/home/millerma/usr/profiletools3')
 import profiletools
 import eqtools
