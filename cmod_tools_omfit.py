@@ -159,9 +159,9 @@ def get_cmod_kin_profs(shot, tmin, tmax, geqdsk=None, pre_shift_TS=False, force_
 
     # PFS this should be all the equilibrium information that is needed
     try: # EFIT20 only exists for shots from certain years
-        e = eqtools.CModEFITTree(int(shot), tree='EFIT20', length_unit='m')
+        e = eqtools.CModEFIT.CModEFITTree(int(shot), tree='EFIT20', length_unit='m')
     except:
-        e = eqtools.CModEFITTree(int(shot), tree='analysis', length_unit='m')
+        e = eqtools.CModEFIT.CModEFITTree(int(shot), tree='analysis', length_unit='m')
                 
     if (core_ts_mult & (core_ts_factor == 1)) or (edge_ts_mult & (edge_ts_factor == 1)):
         ts_factor = get_ts_tci_ratio(shot, tmin, tmax, plot=False)
