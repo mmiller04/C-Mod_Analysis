@@ -21,9 +21,10 @@ from scipy.optimize import curve_fit
 import aurora
 import sys
 # seems silly to need to do this - will try to figure out if there's a need or if one can just install their own copy
-sys.path.append('/home/sciortino/usr/python3modules/eqtools3')
-sys.path.append('/home/sciortino/usr/python3modules/gptools3')
+#sys.path.append('/home/sciortino/usr/python3modules/eqtools3')
+#sys.path.append('/home/sciortino/usr/python3modules/gptools3')
 sys.path.append('/home/millerma/usr/profiletools3')
+sys.path.append('/home/cjperks/usr/python3modules/eqtools3')
 import profiletools
 import eqtools
 
@@ -161,9 +162,9 @@ def get_cmod_kin_profs(shot, tmin, tmax, pre_shift_TS=False, force_to_zero=False
 
 
     try: # EFIT20 only exists for shots from certain years
-        e = eqtools.CModEFITTree(int(shot), tree='EFIT20', length_unit='m')
+        e = eqtools.CModEFIT.CModEFITTree(int(shot), tree='EFIT20', length_unit='m')
     except:
-        e = eqtools.CModEFITTree(int(shot), tree='analysis', length_unit='m')
+        e = eqtools.CModEFIT.CModEFITTree(int(shot), tree='analysis', length_unit='m')
                 
     # If want to apply a calibration to ne data from TS against TCI
     if (core_ts_mult & (core_ts_factor == 1)) or (edge_ts_mult & (edge_ts_factor == 1)):
@@ -1706,9 +1707,9 @@ class kinetic_profile:
     def fetch_equilibrium(self):
 
         try:
-            self.eq = eqtools.CModEFITTree(int(self.shot), tree='EFIT20', length_unit='m')
+            self.eq = eqtools.CModEFIT.CModEFITTree(int(self.shot), tree='EFIT20', length_unit='m')
         except:
-            self.eq = eqtools.CModEFITTree(int(self.shot), tree='analysis', length_unit='m')
+            self.eq = eqtools.CModEFIT.CModEFITTree(int(self.shot), tree='analysis', length_unit='m')
 
     def perturb_mc_err(self, raw, num_mc, maxfev, ped_width, reg, ne=True, verbose=True, plot=False):
         
@@ -3187,9 +3188,9 @@ def map_ts2tci(shot, tmin, tmax, nl_num=4):
     # New method using eqtools
     #gets the magnetic equilibrium at every time point - note EFIT20 is the TS timebase
     try: # EFIT20 only exists for shots from certain years
-        e = eqtools.CModEFITTree(int(shot), tree='EFIT20', length_unit='m')
+        e = eqtools.CModEFIT.CModEFITTree(int(shot), tree='EFIT20', length_unit='m')
     except:
-        e = eqtools.CModEFITTree(int(shot), tree='analysis', length_unit='m')
+        e = eqtools.CModEFIT.CModEFITTree(int(shot), tree='analysis', length_unit='m')
     r_ts = np.full(len(z_ts), r_ts) #just to make r_ts the same length as z_ts
     psin_ts = e.rho2rho('RZ', 'psinorm', r_ts, z_ts, t=t_ts, each_t = True)
 
