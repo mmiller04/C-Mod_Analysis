@@ -18,8 +18,7 @@ from IPython import embed
 from scipy import stats
 
 import sys
-sys.path.append('/home/sciortino/usr/python3modules/eqtools3')
-sys.path.append('/home/sciortino/usr/python3modules/gptools3')
+sys.path.append('/home/cjperks/usr/python3modules/eqtools3')
 sys.path.append('/home/millerma/usr/profiletools3')
 import profiletools
 import eqtools
@@ -99,9 +98,9 @@ def assemble_fit_into_dict(shot, tmin, tmax,
 
     # transform coordinates:
     try: # EFIT20 only exists for shots from certain years
-        e = eqtools.CModEFITTree(int(shot), tree='EFIT20', length_unit='m')
+        e = eqtools.CModEFIT.CModEFITTree(int(shot), tree='EFIT20', length_unit='m')
     except:
-        e = eqtools.CModEFITTree(int(shot), tree='analysis', length_unit='m')
+        e = eqtools.CModEFIT.CModEFITTree(int(shot), tree='analysis', length_unit='m')
     time = (tmin + tmax)/2
 
     rhop_kp = f_ne.x
@@ -288,9 +287,9 @@ def assemble_raw_into_dict(shot,tmin,tmax, p_ne, p_Te, p_pe,
 
     # transform coordinates:
     try: # EFIT20 only exists for shots from certain years
-        e = eqtools.CModEFITTree(int(shot), tree='EFIT20', length_unit='m')
+        e = eqtools.CModEFIT.CModEFITTree(int(shot), tree='EFIT20', length_unit='m')
     except:
-        e = eqtools.CModEFITTree(int(shot), tree='analysis', length_unit='m')
+        e = eqtools.CModEFIT.CModEFITTree(int(shot), tree='analysis', length_unit='m')
     time = (tmin + tmax)/2
 
     Rsep = e.rho2rho('sqrtpsinorm', 'Rmid', 1, time)
@@ -643,9 +642,9 @@ def plot_TS_overview(res, overplot_raw=False, Te_min=10., num_SP=None):
 def plot_check_fits(res,  Te_min=10.):
     
     try: # EFIT20 only exists for shots from certain years
-        e = eqtools.CModEFITTree(int(res['shot']), tree='EFIT20', length_unit='m')
+        e = eqtools.CModEFIT.CModEFITTree(int(res['shot']), tree='EFIT20', length_unit='m')
     except:
-        e = eqtools.CModEFITTree(int(res['shot']), tree='analysis', length_unit='m')
+        e = eqtools.CModEFIT.CModEFITTree(int(res['shot']), tree='analysis', length_unit='m')
     time = (tmin + tmax)/2
 
     Rsep = e.rho2rho('sqrtpsinorm', 'Rmid', 1, time)
