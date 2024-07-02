@@ -10,11 +10,9 @@ plt.ion()
 import numpy as np
 import xarray
 from scipy.interpolate import interp1d, interp2d
-from omfit_classes import omfit_eqdsk, omfit_mds
 import shutil, os, scipy, copy
 from IPython import embed
 import MDSplus
-from omfit_classes.omfit_mds import OMFITmdsValue
 
 from scipy.constants import Boltzmann as kB, e as q_electron
 from scipy.optimize import curve_fit
