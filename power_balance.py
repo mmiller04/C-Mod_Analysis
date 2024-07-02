@@ -89,7 +89,8 @@ def Teu_2pt_model(shot,tmin,tmax, lambdaq_opt=1, rhop_vec=None, ne=None, Te=None
     Rlcfs = e.rho2rho('psinorm', 'Rmid', 1, time)
     gfilename = '/home/millerma/lya/gfiles/' + f'g{shot}.{str(int(time*1e3)).zfill(5)}'
 
-    Bp, Bt = cmod_tools.get_B_RZ(shot, tmin, tmax, Rlcfs, 0, gfilename)
+    Bt = np.abs(e.rz2BT(Rlcfs, 0, time)) 
+    Bp = np.abs(e.rz2BZ(Rlcfs, 0, time)) 
 
     if lambdaq_opt==1:
         # now get 2-point model prediction
