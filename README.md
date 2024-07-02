@@ -11,7 +11,7 @@ A more comprehensive look at the packages should happen in the future, but for n
 `vim ~/.bashrc`
 Add the following lines:
 ```
-export POETRY_VIRTUALENVS_IN_PROJCT = 1
+export POETRY_VIRTUALENVS_IN_PROJECT=1
 export DISPY_DIR=/usr/local/mfe/disruptions/disruption-py
 export PATH=$DISPY_DIR/poetry/bin:$PATH
 export PYTHONPATH=/usr/local/mdsplus/python
