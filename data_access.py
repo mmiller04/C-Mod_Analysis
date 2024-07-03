@@ -6188,7 +6188,7 @@ class Equilibrium(object):
                 return self._FSpline[idx][k]
             except KeyError:
                 F = self.getF()[idx]
-                spline = trispline.UnivariateInterpolator(
+                spline = UnivariateInterpolator(
                     scipy.linspace(0.0, 1.0, len(F)),
                     F,
                     k=k
@@ -6203,7 +6203,7 @@ class Equilibrium(object):
                 return self._FSpline
             else:
                 F = self.getF()
-                self._FSpline = trispline.RectBivariateSpline(
+                self._FSpline = RectBivariateSpline(
                     self.getTimeBase(),
                     scipy.linspace(0.0, 1.0, F.shape[1]),
                     F,
@@ -6683,7 +6683,7 @@ class EFITTree(Equilibrium):
                 raise ValueError('data retrieval failed.')
         return self._fpol.copy()
 
-        
+
 class CModEFITTree(EFITTree):
     """Inherits :py:class:`eqtools.EFIT.EFITTree` class. Machine-specific data
     handling class for Alcator C-Mod. Pulls EFIT data from selected MDS tree
@@ -6808,4 +6808,36 @@ class UnivariateInterpolator(scipy.interpolate.InterpolatedUnivariateSpline):
         out[(x < self.get_knots().min()) | (x > self.get_knots().max())] = scipy.nan
         return out
 
+class RectBivariateSpline(scipy.interpolate.RectBivariateSpline):
+    """the lack of a graceful bounds error causes the fortran to fail hard. 
+    This masks scipy.interpolate.RectBivariateSpline with a proper bound
+    checker and value filler such that it will not fail in use for EqTools
+ 
+    Can be used for both smoothing and interpolating data.
 
+    Args:
+        x (1-dimensional float array):
+            1-D array of coordinates in monotonically increasing order.
+        y (1-dimensional float array):
+            1-D array of coordinates in monotonically increasing order.
+        z (2-dimensional float array):
+            2-D array of data with shape (x.size,y.size).
+
+    Keyword Args:
+        bbox (1-dimensional float): Sequence of length 4 specifying the
+            boundary of the rectangular approximation domain.  By default,
+            ``bbox=[min(x,tx),max(x,tx), min(y,ty),max(y,ty)]``.
+        kx (integer): Degrees of the bivariate spline. Default is 3.
+        ky (integer): Degrees of the bivariate spline. Default is 3.
+        s (float): Positive smoothing factor defined for estimation condition,
+            ``sum((w[i]*(z[i]-s(x[i], y[i])))**2, axis=0) <= s``
+            Default is ``s=0``, which is for interpolation.
+    """
+
+    def __init__(self, x, y, z, bbox=[None] *4, kx=3, ky=3, s=0, bounds_error=True, fill_value=scipy.nan):
+
+        super(RectBivariateSpline, self).__init__( x, y, z, bbox=bbox, kx=kx, ky=ky, s=s)
+        self._xlim = scipy.array((x.min(), x.max()))
+        self._ylim = scipy.array((y.min(), y.max()))
+        self.bounds_error = bounds_error
+        self.fill_value = fill_value
