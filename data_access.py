@@ -4791,6 +4791,13 @@ class Equilibrium(object):
         """
         raise NotImplementedError()
 
+    def getMagR(self):
+        """
+        Abstract method.  See child classes for implementation.
+        
+        Returns magnetic-axis major radius [t]
+        """
+        raise NotImplementedError()
 
     ####################
     # Helper Functions #
@@ -5472,7 +5479,7 @@ class Equilibrium(object):
             except ValueError:
                 return scipy.digitize(scipy.atleast_1d(v), old_div((a[1:] + a[:-1]), 2.0)).reshape(())
 
-                
+
 class EFITTree(Equilibrium):
     """Inherits :py:class:`Equilibrium <eqtools.core.Equilibrium>` class. 
     EFIT-specific data handling class for machines using standard EFIT tag 
@@ -5818,6 +5825,25 @@ class EFITTree(Equilibrium):
         # Default units are m^3, but aren't stored in the tree!
         unit_factor = self._getLengthConversionFactor(self._defaultUnits['_fluxVol'], length_unit)
         return unit_factor * self._fluxVol.copy()
+
+    def getMagR(self, length_unit=1):
+        """returns magnetic-axis major radius.
+
+        Returns:
+            magR (Array): [nt] array of major radius of magnetic axis.
+
+        Raises:
+            ValueError: if module cannot retrieve data from MDS tree.
+        """
+        if self._rmag is None:
+            try:
+                rmagNode = self._MDSTree.getNode(self._root+self._afile+':rmagx')
+                self._rmag = rmagNode.data()
+                self._defaultUnits['_rmag'] = str(rmagNode.units)
+            except:
+                raise ValueError('data retrieval failed.')
+        unit_factor = self._getLengthConversionFactor(self._defaultUnits['_rmag'], length_unit)
+        return unit_factor * self._rmag.copy()
 
 
 class CModEFITTree(EFITTree):
