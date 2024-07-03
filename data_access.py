@@ -4756,6 +4756,31 @@ class Equilibrium(object):
         """
         raise NotImplementedError()
 
+    def getVolLCFS(self):
+        """
+        Abstract method.  See child classes for implementation.
+        
+        Returns plasma volume within LCFS [t]
+        """
+        raise NotImplementedError()
+
+    def getQProfile(self):
+        """
+        Abstract method.  See child classes for implementation.
+        
+        Returns safety factor q profile [psi,t]
+        Psi assumed to be evenly-spaced grid on [0,1]
+        """
+        raise NotImplementedError()
+
+    def getRmidPsi(self):
+        """
+        Abstract method.  See child classes for implementation.
+        
+        Returns outboard-midplane major radius of flux surface [t,psi]
+        """
+        raise NotImplementedError()
+
 
 class EFITTree(Equilibrium):
     """Inherits :py:class:`Equilibrium <eqtools.core.Equilibrium>` class. 
@@ -5004,8 +5029,78 @@ class EFITTree(Equilibrium):
             except:
                 raise ValueError('data retrieval failed.')
         return self._psiLCFS.copy()
-        
 
+    def getVolLCFS(self, length_unit=3):
+        """returns volume within LCFS.
+
+        Keyword Args:
+            length_unit (String or 3): unit for LCFS volume.  Defaults to 3, 
+                denoting default volumetric unit (typically m^3).
+
+        Returns:
+            volLCFS (Array): [nt] array of volume within LCFS.
+
+        Raises:
+            ValueError: if module cannot retrieve data from MDS tree.
+        """
+        if self._volLCFS is None:
+            try:
+                volLCFSNode = self._MDSTree.getNode(self._root+self._afile+':vout')
+                self._volLCFS = volLCFSNode.data()
+                self._defaultUnits['_volLCFS'] = str(volLCFSNode.units)
+            except:
+                raise ValueError('data retrieval failed.')
+        # Default units should be 'cm^3':
+        unit_factor = self._getLengthConversionFactor(self._defaultUnits['_volLCFS'], length_unit)
+        return unit_factor * self._volLCFS.copy()
+  
+    def getQProfile(self):
+        """returns profile of safety factor q.
+
+        Returns:
+            qpsi (Array): [nt,npsi] array of q on flux surface psi.
+
+        Raises:
+            ValueError: if module cannot retrieve data from MDS tree.
+        """
+        if self._qpsi is None:
+            try:
+                qpsiNode = self._MDSTree.getNode(self._root+self._gfile+':qpsi')
+                self._qpsi = qpsiNode.data()
+                self._defaultUnits['_qpsi'] = str(qpsiNode.units)
+            except:
+                raise ValueError('data retrieval failed.')
+        return self._qpsi.copy()
+
+    def getRmidPsi(self, length_unit=1):
+        """returns maximum major radius of each flux surface.
+
+        Keyword Args:
+            length_unit (String or 1): unit of Rmid.  Defaults to 1, indicating 
+                the default parameter unit (typically m).
+
+        Returns:
+            Rmid (Array): [nt,npsi] array of maximum (outboard) major radius of 
+            flux surface psi.
+
+        Raises:
+            Value Error: if module cannot retrieve data from MDS tree.
+        """
+        if self._RmidPsi is None:
+            try:
+                RmidPsiNode = self._MDSTree.getNode(self._root+'fitout:rpres')
+                self._RmidPsi = RmidPsiNode.data()
+                # Units aren't properly stored in the tree for this one!
+                if RmidPsiNode.units != ' ':
+                    self._defaultUnits['_RmidPsi'] = str(RmidPsiNode.units)
+                else:
+                    self._defaultUnits['_RmidPsi'] = 'm'
+            except:
+                raise ValueError('data retrieval failed.')
+        unit_factor = self._getLengthConversionFactor(self._defaultUnits['_RmidPsi'], length_unit)
+        return unit_factor * self._RmidPsi.copy()
+
+        
 class CModEFITTree(EFITTree):
     """Inherits :py:class:`eqtools.EFIT.EFITTree` class. Machine-specific data
     handling class for Alcator C-Mod. Pulls EFIT data from selected MDS tree
