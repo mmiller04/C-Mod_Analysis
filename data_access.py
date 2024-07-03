@@ -4720,6 +4720,13 @@ class Equilibrium(object):
         else:
             raise ValueError("volnorm2rho: Unsupported normalized coordinate method '%s'!" % method)
     
+    def getTimeBase(self):
+        """
+        Abstract method.  See child classes for implementation.
+        
+        Returns timebase array [t]
+        """
+        raise NotImplementedError()
 
 
 class EFITTree(Equilibrium):
@@ -4887,6 +4894,24 @@ class EFITTree(Equilibrium):
         self.getQProfile()
         self.getRmidPsi()
 
+    def getTimeBase(self):
+        """returns EFIT time base vector.
+
+        Returns:
+            time (array): [nt] array of time points.
+
+        Raises:
+            ValueError: if module cannot retrieve data from MDS tree.
+        """
+        if self._time is None:
+            try:
+                timeNode = self._MDSTree.getNode(self._root+self._afile+':time')
+                self._time = timeNode.data()
+                self._defaultUnits['_time'] = str(timeNode.units)
+            except:
+                raise ValueError('data retrieval failed.')
+        return self._time.copy()
+        
 
 class CModEFITTree(EFITTree):
     """Inherits :py:class:`eqtools.EFIT.EFITTree` class. Machine-specific data
