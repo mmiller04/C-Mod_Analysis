@@ -5441,7 +5441,38 @@ class Equilibrium(object):
         
         return R, Z, t, time_idxs, unique_idxs, single_time, single_val, original_shape
 
+    def _getNearestIdx(self, v, a):
+        """Returns the array of indices of the nearest value in a corresponding to each value in v.
+        
+        If the monotonic keyword in the instance is True, then this is done using
+        scipy.digitize under the assumption that a is monotonic. Otherwise,
+        this is done in a general manner by looking for the minimum distance
+        between the points in v and a.
+        
+        Args:
+            v (Array):
+                Input values to match to nearest neighbors in a.
+            a (Array):
+                Given values to match against.
+        
+        Returns:
+            Indices in a of the nearest values to each value in v. Has the same
+                shape as v.
+        """
+        # Gracefully handle single-value versus array inputs, returning in the
+        # corresponding type.
+        if not self._monotonic:
+            try:
+                return scipy.array([(scipy.absolute(a - val)).argmin() for val in v])
+            except TypeError:
+                return (scipy.absolute(a - v)).argmin()
+        else:
+            try:
+                return scipy.digitize(v, old_div((a[1:] + a[:-1]), 2.0))
+            except ValueError:
+                return scipy.digitize(scipy.atleast_1d(v), old_div((a[1:] + a[:-1]), 2.0)).reshape(())
 
+                
 class EFITTree(Equilibrium):
     """Inherits :py:class:`Equilibrium <eqtools.core.Equilibrium>` class. 
     EFIT-specific data handling class for machines using standard EFIT tag 
