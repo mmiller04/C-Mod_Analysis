@@ -5549,7 +5549,38 @@ class Equilibrium(object):
         
         return (good_points, num_good)
 
+    def _getFluxBiSpline(self, idx):
+        """Gets the spline corresponding to the given time index, generating as needed.
         
+        This returns a bivariate spline for when the instance is created with
+        keyword tspline=False.
+        
+        Args:
+            idx (Scalar int):
+                The time index to retrieve the flux spline for.
+                This is ASSUMED to be a valid index for the first dimension of
+                self.getFluxGrid(), otherwise an IndexError will be raised.
+        
+        Returns:
+            An instance of scipy.interpolate.RectBivariateSpline corresponding
+                to the given time index idx.
+        """
+        try:
+            return self._psiOfRZSpline[idx]
+        except KeyError:
+            # Note the order of the arguments -- psiRZ is stored with t along
+            # the first dimension, Z along the second and R along the third.
+            # This leads to intuitive behavior when contour plotting, but
+            # mandates the syntax here.
+            self._psiOfRZSpline[idx] = scipy.interpolate.RectBivariateSpline(
+                self.getZGrid(length_unit='m'),
+                self.getRGrid(length_unit='m'),
+                self.getFluxGrid()[idx, :, :],
+                s=0
+            )
+            return self._psiOfRZSpline[idx]
+
+            
 class EFITTree(Equilibrium):
     """Inherits :py:class:`Equilibrium <eqtools.core.Equilibrium>` class. 
     EFIT-specific data handling class for machines using standard EFIT tag 
