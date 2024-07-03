@@ -742,12 +742,11 @@ def create_pe(p_ne, p_Te):
     p_pe_y = np.array(template_y)[sort_template]*np.array(check_y)[sort_check]
     p_pe_err_y = np.sqrt(np.array(template_err_y)[sort_template]**2 + np.array(check_err_y)[sort_check]**2)
 
-    from data_access import BivariatePlasmaProfile as BPP
-    p_pe = BPP(X_dim=1,
-                X_units=[''],
-                y_units='kPa',
-                X_labels=['$sqrtpsinorm$'],
-                y_label=r'$p_e$')
+    p_pe = data_access.BivariatePlasmaProfile(X_dim=1,
+                                                X_units=[''],
+                                                y_units='kPa',
+                                                X_labels=['$sqrtpsinorm$'],
+                                                y_label=r'$p_e$')
     
     p_pe_y = p_pe_y*1e20*1.602e-19 # 10^{20}*keV --> kPa
     p_pe_err_y = p_pe_err_y*1e20*1.602e-19 # 10^{20}*keV --> kPa
@@ -768,13 +767,11 @@ def build_profile_prefilter(X, y, y_err, kp):
         y_units='10^{20}'
         y_label=r'$n_e$'
 
-    from data_access import BivariatePlasmaProfile as BPP
-        
-    p = BPP(X_dim=1,
-            X_units=[''],
-            y_units=y_units,
-            X_labels=['$sqrtpsinorm$'],
-            y_label=r'$p_e$')
+    p = data_access.BivariatePlasmaProfile(X_dim=1,
+                                            X_units=[''],
+                                            y_units=y_units,
+                                            X_labels=['$sqrtpsinorm$'],
+                                            y_label=r'$p_e$')
 
     p.add_data(X,y,err_y=y_err)
 
