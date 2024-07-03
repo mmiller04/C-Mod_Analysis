@@ -5249,7 +5249,199 @@ class Equilibrium(object):
                 
                 return self._RmidSpline
 
+    def _processRZt(self, R, Z, t, make_grid=False, each_t=True, check_space=True, length_unit=1, convert_only=False, compute_unique=False):
+        """Input checker/processor.
+        
+        Takes R, Z and t. Appropriately packages them into scipy arrays. Checks
+        the validity of the R, Z ranges. If there is a single time value but
+        multiple R, Z values, creates matching time vector. If there is a single
+        R, Z value but multiple t values, creates matching R and Z vectors.
+        Finds list of nearest-neighbor time indices.
+        
+        Args:
+            R (Array-like or scalar float):
+                Values of the radial coordinate. If `R` and `Z` are both scalar
+                values, they are used as the coordinate pair for all of the
+                values in `t`. Must have the same shape as `Z` unless the
+                `make_grid` keyword is True. If `make_grid` is True, `R` must
+                have only one dimension (or be a scalar).
+            Z (Array-like or scalar float):
+                Values of the vertical coordinate. If `R` and `Z` are both
+                scalar values, they are used as the coordinate pair for all of
+                the values in `t`. Must have the same shape as `R` unless the
+                `make_grid` keyword is True. If `make_grid` is True, `Z` must
+                have only one dimension.
+            t (Array-like or single value):
+                If `t` is a single value, it is used for all of the elements of
+                `R`, `Z`. If `t` is array-like and `make_grid` is False, `t`
+                must have the same dimensions as `R` and `Z`. If `t` is
+                array-like and `make_grid` is True, `t` must have shape
+                (len(Z), len(R)).
+        
+        Keyword Args:
+            make_grid (Boolean):
+                Set to True to pass `R` and `Z` through :py:func:`meshgrid`
+                before evaluating. If this is set to True, `R` and `Z` must each
+                only have a single dimension, but can have different lengths.
+                Default is False (do not form meshgrid).
+            each_t (Boolean):
+                When True, the elements in `R` and `Z` (or the meshgrid thereof
+                if `make_grid` is True) are evaluated at each value in `t`. If
+                True, `t` must have only one dimension (or be a scalar). If
+                False, `t` must match the shape of `R` and `Z` (or their
+                meshgrid if `make_grid` is True) or be a scalar. Default is True
+                (evaluate ALL `R`, `Z` at each element in `t`).
+            check_space (Boolean):
+                If True, `R` and `Z` are converted to meters and checked against
+                the extents of the spatial grid.
+            length_unit (String or 1):
+                Length unit that `R` and `Z` are being given in. If a string is
+                given, it must be a valid unit specifier:
                 
+                    ===========  ===========
+                    'm'          meters
+                    'cm'         centimeters
+                    'mm'         millimeters
+                    'in'         inches
+                    'ft'         feet
+                    'yd'         yards
+                    'smoot'      smoots
+                    'cubit'      cubits
+                    'hand'       hands
+                    'default'    meters
+                    ===========  ===========
+                
+                If length_unit is 1 or None, meters are assumed. The default
+                value is 1 (R and Z given in meters). Note that this factor is
+                ONLY applied to the inputs in this function -- if Quan needs to
+                be corrected, it must be done in the calling function.
+        
+        Returns:
+            Tuple of:
+            
+            * **R** - Flattened `R` array with out-of-range values replaced with NaN.
+            * **Z** - Flattened `Z` array with out-of-range values replaced with NaN.
+            * **t** - Flattened `t` array with out-of-range values replaced with NaN.
+            * **time_idxs** - Flattened array of nearest-neighbor time indices.
+              None if :py:attr:`self._tricubic`.
+            * **unique_idxs** - 1d array of the unique values in time_idxs, can
+              be used to save time elsewhere. None if :py:attr:`self._tricubic`.
+            * **single_time** - Boolean indicating whether a single time value
+              is used. If True, then certain simplifying steps can be made and
+              the output should be unwrapped before returning to ensure the
+              least surprise.
+            * **original_shape** - Original shape tuple, used to return the
+              arrays to their starting form. If `single_time` or `each_t` is
+              True, this is the shape of the (expanded) `R`, `Z` arrays. It is
+              assumed that time will be added as the leading dimension.
+        """
+        
+        # Get everything into sensical datatypes. Must force it to be float to
+        # keep scipy.interpolate happy.
+        R = scipy.asarray(R, dtype=float)
+        Z = scipy.asarray(Z, dtype=float)
+        t = scipy.asarray(t, dtype=float)
+        single_time = (t.ndim == 0)
+        single_val = (R.ndim == 0) and (Z.ndim == 0)
+        
+        # Check the shape of t:
+        if each_t and t.ndim > 1:
+            raise ValueError(
+                "_processRZt: When using the each_t keyword, t can have at most "
+                "one dimension!"
+            )
+        
+        # Form the meshgrid and check the input dimensions as needed:
+        if make_grid:
+            if R.ndim != 1 or Z.ndim != 1:
+                raise ValueError(
+                    "_processRZt: When using the make_grid keyword, the number "
+                    "of dimensions of R and Z must both be one!"
+                )
+            R, Z = scipy.meshgrid(R, Z)
+        else:
+            if R.shape != Z.shape:
+                raise ValueError(
+                    "_processRZt: Shape of R and Z arrays must match! Use "
+                    "make_grid=True to form a meshgrid from 1d R, Z arrays."
+                )
+        
+        if not single_time and not each_t and t.shape != R.shape:
+            raise ValueError(
+                "_processRZt: Shape of t does not match shape of R and Z!"
+            )
+        
+        # Check that the R, Z points lie within the grid:
+        if check_space:
+            # Convert units to meters:
+            unit_factor = self._getLengthConversionFactor(
+                length_unit,
+                'm',
+                default='m'
+            )
+            R = unit_factor * R
+            Z = unit_factor * Z
+            
+            if not convert_only:
+                good_points, num_good = self._checkRZ(R, Z)
+                
+                if num_good < 1:
+                    raise ValueError('_processRZt: No valid points!')
+                
+                # Handle bug in older scipy:
+                if R.ndim == 0:
+                    if not good_points:
+                        R = scipy.nan
+                else:
+                    scipy.place(R, ~good_points, scipy.nan)
+                if Z.ndim == 0:
+                    if not good_points:
+                        Z = scipy.nan
+                else:
+                    scipy.place(Z, ~good_points, scipy.nan)
+        
+        if self._tricubic:
+            # When using tricubic spline interpolation, the arrays must be
+            # replicated when using the each_t keyword.
+            if single_time:
+                t = t * scipy.ones_like(R, dtype=float)
+            elif each_t:
+                R = scipy.tile(R, [len(t),] + [1,] * R.ndim)
+                Z = scipy.tile(Z, [len(t),] + [1,] * Z.ndim)
+                t = t[scipy.indices(R.shape)[0]]
+            time_idxs = None
+            unique_idxs = None
+            t = scipy.reshape(t, -1)
+        else:
+            t = scipy.reshape(t, -1)
+            timebase = self.getTimeBase()
+            # Get nearest-neighbor points:
+            time_idxs = self._getNearestIdx(t, timebase)
+            # Check errors and warn if needed:
+            t_errs = scipy.absolute(t - timebase[time_idxs])
+
+            # FS: comment this out to avoid known warning
+            # Assume a constant sampling rate to save time:
+            #if len(time_idxs) > 1 and (t_errs > (old_div((timebase[1] - timebase[0]), 3.0))).any():
+            #    warnings.warn(
+            #        "Some time points are off by more than 1/3 the EFIT point "
+            #        "spacing. Using nearest-neighbor interpolation between time "
+            #        "points. You may want to run EFIT on the timebase you need. "
+            #        "Max error: %.3fs" % (max(t_errs),),
+            #        RuntimeWarning
+            #    )
+            if compute_unique and not single_time and not each_t:
+                unique_idxs = scipy.unique(time_idxs)
+            else:
+                unique_idxs = None
+        
+        original_shape = R.shape
+        R = scipy.reshape(R, -1)
+        Z = scipy.reshape(Z, -1)
+        
+        return R, Z, t, time_idxs, unique_idxs, single_time, single_val, original_shape
+
+
 class EFITTree(Equilibrium):
     """Inherits :py:class:`Equilibrium <eqtools.core.Equilibrium>` class. 
     EFIT-specific data handling class for machines using standard EFIT tag 
