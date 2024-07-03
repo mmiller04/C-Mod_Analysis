@@ -11,12 +11,8 @@ import cmod_tools
 from scipy.constants import Boltzmann as kB, e as q_electron
 import aurora
 
-#import sys
-#sys.path.append('/home/sciortino/usr/python3modules/eqtools3')
-#sys.path.append('/home/sciortino/usr/python3modules/gptools3')
-#sys.path.append('/home/millerma/usr/profiletools3')
-import profiletools
-import eqtools 
+# from this repo
+import data_access
 
 
 # PFS this is the wrapper for the 2-point model
@@ -83,9 +79,9 @@ def Teu_2pt_model(shot,tmin,tmax, lambdaq_opt=1, rhop_vec=None, ne=None, Te=None
 
     # B fields at the LFS LCFS midplane - need equilibrium information
     try: # EFIT20 only exists for shots from certain years
-        e = eqtools.CModEFIT.CModEFITTree(int(shot), tree='EFIT20', length_unit='m')
+        e = data_access.CModEFITTree(int(shot), tree='EFIT20', length_unit='m')
     except:
-        e = eqtools.CModEFIT.CModEFITTree(int(shot), tree='analysis', length_unit='m')
+        e = data_access.CModEFITTree(int(shot), tree='analysis', length_unit='m')
     Rlcfs = e.rho2rho('psinorm', 'Rmid', 1, time)
     gfilename = '/home/millerma/lya/gfiles/' + f'g{shot}.{str(int(time*1e3)).zfill(5)}'
 

@@ -21,6 +21,7 @@ except Exception as _e_MDS:
     _has_MDS = False
 
 import scipy
+import matplotlib.pyplot as plt
 
 _X_label_mapping = {'psinorm': r'$\psi_n$',
                     'phinorm': r'$\phi_n$',
