@@ -4807,6 +4807,23 @@ class Equilibrium(object):
         """
         raise NotImplementedError()
 
+    def getMagZ(self):
+        """
+        Abstract method.  See child classes for implementation.
+        
+        Returns magnetic-axis Z [t]
+        """
+        raise NotImplementedError()
+
+    def getZGrid(self):
+        """
+        Abstract method.  See child classes for implementation.
+        
+        Returns vector of Z-values for psiRZ grid [z]
+        """
+        raise NotImplementedError()
+
+
     ####################
     # Helper Functions #
     ####################
@@ -5869,6 +5886,42 @@ class EFITTree(Equilibrium):
         unit_factor = self._getLengthConversionFactor(self._defaultUnits['_rGrid'],
                                                       length_unit)
         return unit_factor * self._rGrid.copy()
+
+    def getMagZ(self, length_unit=1):
+        """returns magnetic-axis Z.
+
+        Returns:
+            magZ (Array): [nt] array of Z of magnetic axis.
+
+        Raises:
+            ValueError: if module cannot retrieve data from MDS tree.
+        """
+        if self._zmag is None:
+            try:
+                zmagNode = self._MDSTree.getNode(self._root+self._afile+':zmagx')
+                self._zmag = zmagNode.data()
+                self._defaultUnits['_zmag'] = str(zmagNode.units)
+            except:
+                raise ValueError('data retrieval failed.')
+        unit_factor = self._getLengthConversionFactor(self._defaultUnits['_zmag'], length_unit)
+        return unit_factor * self._zmag.copy()
+
+    def getZGrid(self, length_unit=1):
+        """returns EFIT Z-axis.
+
+        Returns:
+            zGrid (Array): [nz] array of Z-axis of flux grid.
+
+        Raises:
+            ValueError: if module cannot retrieve data from MDS tree.
+        """
+        if self._zGrid is None:
+            raise ValueError('data retrieval failed.')
+        
+        # Default units should be 'm'
+        unit_factor = self._getLengthConversionFactor(self._defaultUnits['_zGrid'],
+                                                      length_unit)
+        return unit_factor * self._zGrid.copy()
 
 
 class CModEFITTree(EFITTree):
