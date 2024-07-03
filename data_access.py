@@ -5140,7 +5140,116 @@ class Equilibrium(object):
             else:
                 return quan_norm
 
+    def _getRmidSpline(self, idx, k=3):
+        """Returns the spline object corresponding to the passed time index idx,
+        generating it if it does not already exist.
+        
+        There are two approaches that come to mind:
+            -- In Steve Wolfe's implementation of efit_rz2mid and efit_psi2rmid,
+                he uses the EFIT output Rmid as a function of normalized flux
+                (i.e., what is returned by self.getRmidPsi()) in the core, then
+                expands the grid beyond this manually.
+            -- A simpler approach would be to just compute the psi_norm(R_mid)
+                grid directly from the radial grid.
+        
+        The latter approach is selected for simplicity.
+        
+        The units of R_mid are always meters, and are converted by the wrapper
+        functions to whatever the user wants.
+        
+        Args:
+            idx (Scalar int):
+                The time index to retrieve the flux spline for.
+                This is ASSUMED to be a valid index for the first dimension of
+                self.getFluxGrid(), otherwise an IndexError will be raised.
+        
+        Keyword Args:
+            k (positive int)
+                Polynomial degree of spline to use. Default is 3.
+        
+        Returns:
+            :py:class:`trispline.UnivariateInterpolator` or
+                :py:class:`tripline.RectBivariateSpline` depending on whether or
+                not the instance was created with the `tspline` keyword.
+        """
+        if not self._tricubic:
+            try:
+                return self._RmidSpline[idx][k]
+            except KeyError:
+                # New approach: create a fairly dense radial grid from the
+                # global flux grid to avoid 1d interpolation problems in the
+                # core. The bivariate spline seems to be a little more robust
+                # in this respect.
+                resample_factor = 3
+                R_grid = scipy.linspace(
+                    self.getMagR(length_unit='m')[idx],
+                    self.getRGrid(length_unit='m')[-1],
+                    resample_factor * len(self.getRGrid(length_unit='m'))
+                )
+                
+                psi_norm_on_grid = self.rz2psinorm(
+                    R_grid,
+                    self.getMagZ(length_unit='m')[idx] * scipy.ones(R_grid.shape),
+                    self.getTimeBase()[idx]
+                )
+                # Correct for the slight issues at the magnetic axis:
+                psi_norm_on_grid[0] = 0.0
+                # Find if it ever goes non-monotonic: psinorm is assumed to be
+                # strictly INCREASING from the magnetic axis out.
+                decr_idx, = scipy.where((psi_norm_on_grid[1:] - psi_norm_on_grid[:-1]) < 0)
+                if len(decr_idx) > 0:
+                    psi_norm_on_grid = psi_norm_on_grid[:decr_idx[0] + 1]
+                    R_grid = R_grid[:decr_idx[0] + 1]
+                
+                spline = trispline.UnivariateInterpolator(
+                    psi_norm_on_grid, R_grid, k=k
+                )
+                try:
+                    self._RmidSpline[idx][k] = spline
+                except KeyError:
+                    self._RmidSpline[idx] = {k: spline}
+                return self._RmidSpline[idx][k]
+        else:
+            if self._RmidSpline:
+                return self._RmidSpline
+            else:
+                resample_factor = 3 * len(self.getRGrid(length_unit='m'))
+                
+                # generate timebase and R_grid through a meshgrid
+                t, R_grid = scipy.meshgrid(
+                    self.getTimeBase(),
+                    scipy.zeros((resample_factor,))
+                )
+                Z_grid = scipy.dot(
+                    scipy.ones((resample_factor, 1)),
+                    scipy.atleast_2d(self.getMagZ(length_unit='m'))
+                )
+                
+                for idx in scipy.arange(self.getTimeBase().size):
+                    R_grid[:, idx] = scipy.linspace(
+                        self.getMagR(length_unit='m')[idx],
+                        self.getRGrid(length_unit='m')[-1],
+                        resample_factor
+                    )
+                
+                psi_norm_on_grid = self.rz2psinorm(
+                    R_grid,
+                    Z_grid,
+                    t,
+                    each_t=False
+                )
+                # Correct for the slight issues at the magnetic axis:
+                psi_norm_on_grid[0, :] = 0.0
+                
+                self._RmidSpline = trispline.BivariateInterpolator(
+                    t.ravel(),
+                    psi_norm_on_grid.ravel(),
+                    R_grid.ravel()
+                )
+                
+                return self._RmidSpline
 
+                
 class EFITTree(Equilibrium):
     """Inherits :py:class:`Equilibrium <eqtools.core.Equilibrium>` class. 
     EFIT-specific data handling class for machines using standard EFIT tag 
