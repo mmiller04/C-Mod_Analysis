@@ -4782,6 +4782,149 @@ class Equilibrium(object):
         raise NotImplementedError()
 
 
+    ####################
+    # Helper Functions #
+    ####################
+    
+    def _getLengthConversionFactor(self, start, end, default=None):
+        """Gets the conversion factor to convert from units start to units end.
+        
+        Uses a regex to parse units of the form:
+        'm'
+        'm^2'
+        'm2'
+        Leading and trailing spaces are NOT allowed.
+        
+        Valid unit specifiers are:
+            'm'         meters
+            'cm'        centimeters
+            'mm'        millimeters
+            'in'        inches
+            'ft'        feet
+            'yd'        yards
+            'smoot'     smoots
+            'cubit'     cubits
+            'hand'      hands
+        
+        Args:
+            start (String, int or None):
+                Starting unit for the conversion.
+                - If None, uses the unit specified when the instance was created.
+                - If start is an int, the starting unit is taken to be the unit
+                    specified when the instance was created raised to that power.
+                - If start is 'default', either explicitly or because of
+                    reverting to the instance-level unit, then the value passed
+                    in the kwarg default is used. In this case, default must be
+                    a complete unit string (i.e., not None, not an int and not
+                    'default').
+                - Otherwise, start must be a valid unit specifier as given above.
+            end (String, int or None):
+                Target (ending) unit for the conversion.
+                - If None, uses the unit specified when the instance was created.
+                - If end is an int, the target unit is taken to be the unit
+                    specified when the instance was created raised to that power.
+                - If end is 'default', either explicitly or because of
+                    reverting to the instance-level unit, then the value passed
+                    in the kwarg default is used. In this case, default must be
+                    a complete unit string (i.e., not None, not an int and not
+                    'default').
+                - Otherwise, end must be a valid unit specifier as given above.
+                    In this case, if end does not specify an exponent, it uses
+                    whatever the exponent on start is. This allows a user to
+                    ask for an area in units of m^2 by specifying
+                    length_unit='m', for instance. An error will still be
+                    raised if the user puts in a completely inconsistent
+                    specification such as length_unit='m^3' or length_unit='m^1'.
+        
+        Keyword Args:
+            default (String, int or None):
+                The default unit to use in cases
+                where start or end is 'default'. If default is None, an int, or 
+                'default', then the value given for start is used. (A circular
+                definition is prevented for cases in which start is default by
+                checking for this case during the handling of the case
+                start=='default'.)
+        
+        Returns:
+            Conversion factor: Scalar float. The conversion factor to get from
+                the start unit to the end unit.
+        
+        Raises:
+            ValueError: If start is 'default' and default is None, an int, or
+                'default'.
+            ValueError: If the (processed) exponents of start and end or start
+                and default are incompatible.
+            ValueError: If the processed units for start and end are not valid.
+        """
+        # Input handling:
+        # Starting unit:
+        if start is None:
+            # If start is None, it means to use the instance's default unit (implied to the power of 1):
+            start = self._length_unit
+        elif isinstance(start, (int, int)):
+            # If start is an integer type, this is used as the power applied to the instance's default unit:
+            if self._length_unit != 'default':
+                start = self._length_unit + '^' + str(start)
+            else:
+                # If the instance's default unit is 'default', this is handled next:
+                start = self._length_unit
+        if start == 'default':
+            # If start is 'default', the thing passed to default is used, but only if it is a complete unit specification:
+            if default is None or isinstance(default, (int, int)) or default == 'default':
+                raise ValueError("You must specify a complete unit (i.e., "
+                                 "non-None, non-integer and not 'default') "
+                                 "when using 'default' for the starting unit.")
+            else:
+                start = default
+        
+        # Default unit:
+        if default is None or isinstance(default, (int, int)) or default == 'default':
+            # If start is 'default', these cases have already been caught above.
+            default = start
+        
+        # Target (ending) unit:
+        if end is None:
+            # If end is None, it means to use the instance's default unit (implied to the power of 1):
+            end = self._length_unit
+        elif isinstance(end, (int, int)):
+            # If end is an integer type, this is used as the power applied to the instance's default unit:
+            if self._length_unit != 'default':
+                end = self._length_unit + '^' + str(end)
+            else:
+                # If the instance's default unit is 'default', this is handled next:
+                end = self._length_unit
+        if end == 'default':
+            # If end is 'default', the thing passed to default is used, which
+            # defaults to start, which itself is not allowed to be 'default':
+            end = default
+        
+        unit_regex = r'^([A-Za-z]+)\^?([0-9]*)$'
+        
+        # Need to explicitly cast because MDSplus returns its own classes and
+        # re.split doesn't seem to handle the polymorphism properly:
+        start = str(start)
+        end = str(end)
+        default = str(default)
+        
+        dum1, start_u, start_pow, dum2 = re.split(unit_regex, start)
+        dum1, end_u, end_pow, dum2 = re.split(unit_regex, end)
+        dum1, default_u, default_pow, dum2 = re.split(unit_regex, default)
+        
+        start_pow = 1.0 if start_pow == '' else float(start_pow)
+        if end_pow == '':
+            end_pow = start_pow
+        else:
+            end_pow = float(end_pow)
+        default_pow = 1.0 if default_pow == '' else float(default_pow)
+        
+        if start_pow != end_pow or start_pow != default_pow:
+            raise ValueError("Incompatible exponents between '%s', '%s' and '%s'!" % (start, end, default))
+        try:
+            return (_length_conversion[start_u][end_u])**start_pow
+        except KeyError:
+            raise ValueError("Unit '%s' is not a recognized length unit!" % end)
+
+
 class EFITTree(Equilibrium):
     """Inherits :py:class:`Equilibrium <eqtools.core.Equilibrium>` class. 
     EFIT-specific data handling class for machines using standard EFIT tag 
@@ -5100,7 +5243,7 @@ class EFITTree(Equilibrium):
         unit_factor = self._getLengthConversionFactor(self._defaultUnits['_RmidPsi'], length_unit)
         return unit_factor * self._RmidPsi.copy()
 
-        
+
 class CModEFITTree(EFITTree):
     """Inherits :py:class:`eqtools.EFIT.EFITTree` class. Machine-specific data
     handling class for Alcator C-Mod. Pulls EFIT data from selected MDS tree
