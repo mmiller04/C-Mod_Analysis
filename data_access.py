@@ -5504,7 +5504,52 @@ class Equilibrium(object):
             except ValueError:
                 return scipy.digitize(scipy.atleast_1d(v), old_div((a[1:] + a[:-1]), 2.0)).reshape(())
 
+    def _checkRZ(self, R, Z):
+        """Checks whether or not the passed arrays of (R, Z) are within the bounds of the reconstruction data.
+        
+        Returns the mask array of booleans indicating the goodness of each point
+        at the corresponding index. Raises warnings if there are no good_points
+        and if there are some values out of bounds.
+        
+        Assumes R and Z are in meters and that the R and Z arrays returned by
+        this instance's getRGrid() and getZGrid() are monotonically increasing.
+        
+        Args:
+            R (Array):
+                Radial coordinate to check. Must have the same size as Z.
+            Z (Array)
+                Vertical coordinate to check. Must have the same size as R.
+        
+        Returns:
+            good_points: Boolean array. True where points are within the bounds
+                defined by self.getRGrid and self.getZGrid.
+            num_good: The number of good points.
+        """
+        good_points = ((R <= self.getRGrid(length_unit='m')[-1]) &
+                       (R >= self.getRGrid(length_unit='m')[0]) &
+                       (Z <= self.getZGrid(length_unit='m')[-1]) &
+                       (Z >= self.getZGrid(length_unit='m')[0]))
+        # Gracefully handle single-value versus array inputs, returning in the
+        # corresponding type.
+        num_good = scipy.sum(good_points)
+        test = scipy.array(R)
+        if len(test.shape) > 0:
+            num_pts = test.size
+        else:
+            num_good = good_points
+            num_pts = 1
+        if num_good == 0:
+            warnings.warn("Warning: _checkRZ: No valid (R, Z) points!",
+                          RuntimeWarning)
+        elif num_good != num_pts:
+            warnings.warn("Warning: _checkRZ: Some (R, Z) values out of bounds. "
+                          "(%(bad)d bad out of %(tot)d)"
+                          % {'bad': num_pts - num_good, 'tot': num_pts},
+                          RuntimeWarning)
+        
+        return (good_points, num_good)
 
+        
 class EFITTree(Equilibrium):
     """Inherits :py:class:`Equilibrium <eqtools.core.Equilibrium>` class. 
     EFIT-specific data handling class for machines using standard EFIT tag 
