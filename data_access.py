@@ -23,6 +23,26 @@ except Exception as _e_MDS:
 import eqtools
 import scipy
 
+_X_label_mapping = {'psinorm': r'$\psi_n$',
+                    'phinorm': r'$\phi_n$',
+                    'volnorm': r'$V_n$',
+                    'Rmid': r'$R_{mid}$',
+                    'r/a': '$r/a$',
+                    'sqrtpsinorm': r'$\sqrt{\psi_n}$',
+                    'sqrtphinorm': r'$\sqrt{\phi_n}$',
+                    'sqrtvolnorm': r'$\sqrt{V_n}$',
+                    'sqrtr/a': r'$\sqrt{r/a}$'}
+_abscissa_mapping = {y:x for x, y in _X_label_mapping.items()}
+_X_unit_mapping = {'psinorm': '',
+                   'phinorm': '',
+                   'volnorm': '',
+                   'Rmid': 'm',
+                   'r/a': '',
+                   'sqrtpsinorm': '',
+                   'sqrtphinorm': '',
+                   'sqrtvolnorm': '',
+                   'sqrtr/a': ''} 
+
 class Profile(object):
     """Object to abstractly represent a profile.
     
