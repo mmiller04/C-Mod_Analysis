@@ -1220,6 +1220,7 @@ def TeTS(shot, **kwargs):
 
 ##########################
 
+import re
 from past.utils import old_div
 
 """The following is a dictionary to implement length unit conversions. The first
@@ -4781,6 +4782,15 @@ class Equilibrium(object):
         """
         raise NotImplementedError()
 
+    def getFluxVol(self):
+        """
+        Abstract method.  See child classes for implementation.
+        
+        Returns volume contained within flux surface as function of psi [psi,t].
+        Psi assumed to be evenly-spaced grid on [0,1]
+        """
+        raise NotImplementedError()
+
 
     ####################
     # Helper Functions #
@@ -5242,6 +5252,34 @@ class EFITTree(Equilibrium):
                 raise ValueError('data retrieval failed.')
         unit_factor = self._getLengthConversionFactor(self._defaultUnits['_RmidPsi'], length_unit)
         return unit_factor * self._RmidPsi.copy()
+    
+    def getFluxVol(self, length_unit=3):
+        """returns volume within flux surface.
+
+        Keyword Args:
+            length_unit (String or 3): unit for plasma volume.  Defaults to 3, 
+                indicating default volumetric unit (typically m^3).
+
+        Returns:
+            fluxVol (Array): [nt,npsi] array of volume within flux surface.
+
+        Raises:
+            ValueError: if module cannot retrieve data from MDS tree.
+        """
+        if self._fluxVol is None:
+            try:
+                fluxVolNode = self._MDSTree.getNode(self._root+'fitout:volp')
+                self._fluxVol = fluxVolNode.data()
+                # Units aren't properly stored in the tree for this one!
+                if fluxVolNode.units != ' ':
+                    self._defaultUnits['_fluxVol'] = str(fluxVolNode.units)
+                else:
+                    self._defaultUnits['_fluxVol'] = 'm^3'
+            except:
+                raise ValueError('data retrieval failed.')
+        # Default units are m^3, but aren't stored in the tree!
+        unit_factor = self._getLengthConversionFactor(self._defaultUnits['_fluxVol'], length_unit)
+        return unit_factor * self._fluxVol.copy()
 
 
 class CModEFITTree(EFITTree):
