@@ -4728,6 +4728,34 @@ class Equilibrium(object):
         """
         raise NotImplementedError()
 
+    def getFluxGrid(self):
+        """
+        Abstract method.  See child classes for implementation.
+        
+        returns 3D grid of psi(r,z,t)
+         The array returned should have the following dimensions:
+           First dimension: time
+           Second dimension: Z
+           Third dimension: R
+        """
+        raise NotImplementedError()
+
+    def getFluxAxis(self):
+        """
+        Abstract method.  See child classes for implementation.
+        
+        Returns psi at magnetic axis [t]
+        """
+        raise NotImplementedError()
+
+    def getFluxLCFS(self):
+        """
+        Abstract method.  See child classes for implementation.
+        
+        Returns psi a separatrix [t]
+        """
+        raise NotImplementedError()
+
 
 class EFITTree(Equilibrium):
     """Inherits :py:class:`Equilibrium <eqtools.core.Equilibrium>` class. 
@@ -4911,6 +4939,71 @@ class EFITTree(Equilibrium):
             except:
                 raise ValueError('data retrieval failed.')
         return self._time.copy()
+
+    def getFluxGrid(self):
+        """returns EFIT flux grid.
+        
+        Note that this method preserves whatever sign convention is used in the
+        tree. For C-Mod, this means that the result should be multiplied by
+        -1 * :py:meth:`getCurrentSign()` in most cases.
+        
+        Returns:
+            psiRZ (Array): [nt,nz,nr] array of (non-normalized) flux on grid.
+
+        Raises:
+            ValueError: if module cannot retrieve data from MDS tree.
+        """
+        #import pdb
+        #pdb.set_trace()
+
+        if self._psiRZ is None:
+            try:
+                psinode = self._MDSTree.getNode(self._root+self._gfile+':psirz')
+                self._psiRZ = psinode.data()
+                self._rGrid = psinode.dim_of(0).data()
+                self._zGrid = psinode.dim_of(1).data()
+                self._defaultUnits['_psiRZ'] = str(psinode.units)
+                self._defaultUnits['_rGrid'] = str(psinode.dim_of(0).units)
+                self._defaultUnits['_zGrid'] = str(psinode.dim_of(1).units)
+            except:
+                raise ValueError('data retrieval failed.')
+        return self._psiRZ.copy()
+
+    def getFluxAxis(self):
+        """returns psi on magnetic axis.
+
+        Returns:
+            psiAxis (Array): [nt] array of psi on magnetic axis.
+
+        Raises:
+            ValueError: if module cannot retrieve data from MDS tree.
+        """
+        if self._psiAxis is None:
+            try:
+                psiAxisNode = self._MDSTree.getNode(self._root+self._afile+':simagx')
+                self._psiAxis = psiAxisNode.data()
+                self._defaultUnits['_psiAxis'] = str(psiAxisNode.units)
+            except:
+                raise ValueError('data retrieval failed.')
+        return self._psiAxis.copy()
+
+    def getFluxLCFS(self):
+        """returns psi at separatrix.
+
+        Returns:
+            psiLCFS (Array): [nt] array of psi at LCFS.
+
+        Raises:
+            ValueError: if module cannot retrieve data from MDS tree.
+        """
+        if self._psiLCFS is None:
+            try:
+                psiLCFSNode = self._MDSTree.getNode(self._root+self._afile+':sibdry')
+                self._psiLCFS = psiLCFSNode.data()
+                self._defaultUnits['_psiLCFS'] = str(psiLCFSNode.units)
+            except:
+                raise ValueError('data retrieval failed.')
+        return self._psiLCFS.copy()
         
 
 class CModEFITTree(EFITTree):
