@@ -350,7 +350,28 @@ class Profile(object):
         
         return (X_bad, y_bad, err_X_bad, err_y_bad)
 
-
+    def drop_axis(self, axis):
+        """Drops a selected axis from `X`.
+        
+        Parameters
+        ----------
+        axis : int
+            The index of the axis to drop.
+        """
+        if self.X_dim == 1:
+            raise ValueError("Can't drop axis from a univariate profile!")
+        self.X_dim -= 1
+        if self.X is not None:
+            self.channels = scipy.delete(self.channels, axis, axis=1)
+            self.X = scipy.delete(self.X, axis, axis=1)
+            self.err_X = scipy.delete(self.err_X, axis, axis=1)
+        self.X_labels.pop(axis)
+        self.X_units.pop(axis)
+        
+        for p in self.transformed:
+            p.X = scipy.delete(p.X, axis, axis=2)
+            p.err_X = scipy.delete(p.err_X, axis, axis=2)
+            
 
 class BivariatePlasmaProfile(Profile):
     """Class to represent bivariate (y=f(t, psi)) plasma data.
@@ -633,7 +654,7 @@ class BivariatePlasmaProfile(Profile):
                     self.t_min = min(self.t_min, t_min_T)
                     self.t_max = max(self.t_max, t_max_T)
         super(BivariatePlasmaProfile, self).drop_axis(axis)
-        
+
 
 class Channel(object):
     """Class to store data from a single channel.
