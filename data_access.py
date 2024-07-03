@@ -4839,6 +4839,14 @@ class Equilibrium(object):
         """
         raise NotImplementedError()
 
+    def getBtVac(self):
+        """
+        Abstract method.  See child classes for implementation.
+        
+        Returns vacuum on-axis toroidal field [t]
+        """
+        raise NotImplementedError()
+
     ####################
     # Helper Functions #
     ####################
@@ -6682,6 +6690,24 @@ class EFITTree(Equilibrium):
             except:
                 raise ValueError('data retrieval failed.')
         return self._fpol.copy()
+
+    def getBtVac(self):
+        """Returns vacuum toroidal field on-axis.
+
+        Returns:
+            BtVac (Array): [nt] array of vacuum toroidal field.
+
+        Raises:
+            ValueError: if module cannot retrieve data from MDS tree.
+        """
+        if self._btaxv is None:
+            try:
+                btaxvNode = self._MDSTree.getNode(self._root+self._afile+':btaxv')
+                self._btaxv = btaxvNode.data()
+                self._defaultUnits['_btaxv'] = str(btaxvNode.units)
+            except:
+                raise ValueError('data retrieval failed.')
+        return self._btaxv.copy()
 
 
 class CModEFITTree(EFITTree):
