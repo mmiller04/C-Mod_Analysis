@@ -950,22 +950,6 @@ def neETS(shot, abscissa='RZ', t_min=None, t_max=None, electrons=None,
     p.abscissa = 'RZ'
 
     p.add_data(X, ne, err_y=err_ne, channels={1: channels, 2: channels})
-    # Remove flagged points:
-    try:
-        pm = electrons.getNode(r'yag_edgets.data:pointmask').data().flatten()
-    except:
-        pm = scipy.ones_like(p.y)
-    p.remove_points(
-        (pm == 0) |
-        scipy.isnan(p.err_y) |
-        scipy.isinf(p.err_y) |
-        (p.err_y == 0.0) |
-        (p.err_y == 1.0) |
-        (p.err_y == 2.0) |
-        ((p.y == 0.0) & remove_zeros) |
-        scipy.isnan(p.y) |
-        scipy.isinf(p.y)
-    )
     if t_min is not None:
         p.remove_points(scipy.asarray(p.X[:, 0]).flatten() < t_min)
     if t_max is not None:
@@ -1015,17 +999,44 @@ def neCTS(shot, abscissa='RZ', t_min=None, t_max=None, electrons=None,
                                y_units='$10^{20}$ m$^{-3}$',
                                X_labels=['$t$', '$R$', '$Z$'],
                                y_label=r'$n_e$, CTS')
-    
+
     if electrons is None:
         electrons = MDSplus.Tree('electrons', shot)
-    
-    N_ne_TS = electrons.getNode(r'\electrons::top.yag_new.results.profiles:ne_rz')
-    
-    t_ne_TS = N_ne_TS.dim_of().data()
-    ne_TS = N_ne_TS.data() / 1e20
-    dev_ne_TS = electrons.getNode(r'yag_new.results.profiles:ne_err').data() / 1e20
-    
-    Z_CTS = electrons.getNode(r'yag_new.results.profiles:z_sorted').data() + Z_shift
+
+    try:
+        N_ne_TS = electrons.getNode(r'\electrons::top.yag_new.results.profiles:ne_rz')
+        if (shot > 1030000000) & (shot < 1040000000):
+            N_ne_TS_old = electrons.getNode(r'\electrons::top.yag.results.global.profile:ne_rz_t')
+    except:
+        N_ne_TS = electrons.getNode(r'\electrons::top.yag.results.global.profile:ne_rz_t')
+
+    t_ne_TS = N_ne_TS.dim_of().data() # only need to get timebase for one of them
+    if (shot > 1030000000) & (shot < 1040000000):
+        ne_TS = scipy.concatenate((N_ne_TS.data() / 1e20, N_ne_TS_old.data() / 1e20))
+    else:
+        ne_TS = N_ne_TS.data() / 1e20
+
+    try:
+        N_dev_ne_TS = electrons.getNode(r'yag_new.results.profiles:ne_err')
+        if (shot > 1030000000) & (shot < 1040000000):
+            N_dev_ne_TS_old = electrons.getNode(r'yag.results.global.profile:ne_err_zt')
+    except:
+        N_dev_ne_TS = electrons.getNode(r'yag.results.global.profile:ne_err_zt')
+
+    try:
+        N_Z_CTS = electrons.getNode(r'yag_new.results.profiles:z_sorted')
+        if (shot > 1030000000) & (shot < 1040000000):
+            N_Z_CTS_old = electrons.getNode(r'yag.results.global.profile.z_sorted')
+    except:
+        N_Z_CTS = electrons.getNode(r'yag.results.global.profile.z_sorted')
+
+    if (shot > 1030000000) & (shot < 1040000000):
+        dev_ne_TS = scipy.concatenate((N_dev_ne_TS.data() / 1e20, N_dev_ne_TS_old.data() / 1e20))
+        Z_CTS = scipy.concatenate((N_Z_CTS.data() + Z_shift, N_Z_CTS_old.data() + Z_shift))
+    else:
+        dev_ne_TS = N_dev_ne_TS.data() / 1e20
+        Z_CTS = N_Z_CTS.data() + Z_shift
+
     R_CTS = (electrons.getNode(r'yag.results.param:r').data() * scipy.ones_like(Z_CTS))
     channels = list(range(0, len(Z_CTS)))
     
@@ -1051,17 +1062,6 @@ def neCTS(shot, abscissa='RZ', t_min=None, t_max=None, electrons=None,
     
     p.add_data(X, ne, err_y=err_ne, channels={1: channels, 2: channels})
     
-    # Remove flagged points:
-    p.remove_points(
-        scipy.isnan(p.err_y) |
-        scipy.isinf(p.err_y) |
-        (p.err_y == 0.0) |
-        (p.err_y == 1.0) |
-        (p.err_y == 2.0) |
-        ((p.y == 0.0) & remove_zeros) |
-        scipy.isnan(p.y) |
-        scipy.isinf(p.y)
-    )
     if t_min is not None:
         p.remove_points(scipy.asarray(p.X[:, 0]).flatten() < t_min)
     if t_max is not None:
@@ -1225,23 +1225,6 @@ def TeETS(shot, abscissa='RZ', t_min=None, t_max=None, electrons=None,
     p.abscissa = 'RZ'
     
     p.add_data(X, Te, err_y=err_Te, channels={1: channels, 2: channels})
-    # Remove flagged points:
-    try:
-        pm = electrons.getNode(r'yag_edgets.data:pointmask').data().flatten()
-    except:
-        pm = scipy.ones_like(p.y)
-    p.remove_points(
-        (pm == 0) |
-        scipy.isnan(p.err_y) |
-        scipy.isinf(p.err_y) |
-        (p.err_y == 0.0) |
-        (p.err_y == 1.0) |
-        (p.err_y == 0.5) |
-        ((p.y == 0.0) & remove_zeros) |
-        ((p.y == 0.0) & (p.err_y == 0.029999999329447746)) | # This seems to be an old way of flagging. Could be risky...
-        scipy.isnan(p.y) |
-        scipy.isinf(p.y) 
-    )
     
     if t_min is not None:
         p.remove_points(scipy.asarray(p.X[:, 0]).flatten() < t_min)
@@ -1290,21 +1273,48 @@ def TeCTS(shot, abscissa='RZ', t_min=None, t_max=None, electrons=None,
                                y_units='keV',
                                X_labels=['$t$', '$R$', '$Z$'],
                                y_label=r'$T_e$, CTS')
-    
+
     if electrons is None:
         electrons = MDSplus.Tree('electrons', shot)
-    
-    N_Te_TS = electrons.getNode(r'\electrons::top.yag_new.results.profiles:Te_rz')
-    
+
+    try:
+        N_Te_TS = electrons.getNode(r'\electrons::top.yag_new.results.profiles:Te_rz')
+        if (shot > 1030000000) & (shot < 1040000000):
+            N_Te_TS_old = electrons.getNode(r'\electrons::top.yag.results.global.profile:Te_rz_t')
+    except:
+        N_Te_TS = electrons.getNode(r'\electrons::top.yag.results.global.profile:Te_rz_t')
+
     t_Te_TS = N_Te_TS.dim_of().data()
-    Te_TS = N_Te_TS.data()
-    dev_Te_TS = electrons.getNode(r'yag_new.results.profiles:Te_err').data()
-    
-    Z_CTS = electrons.getNode(r'yag_new.results.profiles:z_sorted').data() + Z_shift
+    if (shot > 1030000000) & (shot < 1040000000):
+        Te_TS = scipy.concatenate((N_Te_TS.data(), N_Te_TS_old.data()))
+    else:
+        Te_TS = N_Te_TS.data()
+
+    try:
+        N_dev_Te_TS = electrons.getNode(r'yag_new.results.profiles:Te_err')
+        if (shot > 1030000000) & (shot < 1040000000):
+            N_dev_Te_TS_old = electrons.getNode(r'yag.results.global.profile:Te_err_zt')
+    except:
+        N_dev_Te_TS = electrons.getNode(r'yag.results.global.profile:Te_err_zt')
+
+    try:
+        N_Z_CTS = electrons.getNode(r'yag_new.results.profiles:z_sorted')
+        if (shot > 1030000000) & (shot < 1040000000):
+            N_Z_CTS_old = electrons.getNode(r'yag.results.global.profile.z_sorted')
+    except:
+        N_Z_CTS = electrons.getNode(r'yag.results.global.profile.z_sorted')
+
+    if (shot > 1030000000) & (shot < 1040000000):
+        dev_Te_TS = scipy.concatenate((N_dev_Te_TS.data(), N_dev_Te_TS_old.data()))
+        Z_CTS = scipy.concatenate((N_Z_CTS.data() + Z_shift, N_Z_CTS_old.data() + Z_shift))
+    else:
+        dev_Te_TS = N_dev_Te_TS.data()
+        Z_CTS = N_Z_CTS.data() + Z_shift
+
     R_CTS = (electrons.getNode(r'yag.results.param:r').data() *
              scipy.ones_like(Z_CTS))
     channels = list(range(0, len(Z_CTS)))
-    
+ 
     t_grid, Z_grid = scipy.meshgrid(t_Te_TS, Z_CTS)
     t_grid, R_grid = scipy.meshgrid(t_Te_TS, R_CTS)
     t_grid, channel_grid = scipy.meshgrid(t_Te_TS, channels)
@@ -1326,16 +1336,7 @@ def TeCTS(shot, abscissa='RZ', t_min=None, t_max=None, electrons=None,
     p.abscissa = 'RZ'
     
     p.add_data(X, Te, err_y=err_Te, channels={1: channels, 2: channels})
-    # Remove flagged points:
-    p.remove_points(
-        scipy.isnan(p.err_y) |
-        scipy.isinf(p.err_y) |
-        (p.err_y == 0.0) |
-        (p.err_y == 1.0) |
-        ((p.y == 0.0) & remove_zeros) |
-        scipy.isnan(p.y) |
-        scipy.isinf(p.y)
-    )
+    
     if t_min is not None:
         p.remove_points(scipy.asarray(p.X[:, 0]).flatten() < t_min)
     if t_max is not None:

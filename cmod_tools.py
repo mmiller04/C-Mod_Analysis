@@ -18,13 +18,6 @@ from scipy.constants import Boltzmann as kB, e as q_electron
 from scipy.optimize import curve_fit
 import aurora
 import sys
-# seems silly to need to do this - will try to figure out if there's a need or if one can just install their own copy
-#sys.path.append('/home/cjperks/usr/python3modules/profiletools3')
-#sys.path.append('/home/cjperks/usr/python3modules/eqtools3')
-#sys.path.append('/home/cjperks/usr/python3modules/gptools3')
-#sys.path.append('/home/cjperks/usr/python3modules/TRIPPy3')
-#import profiletools
-#import eqtools
 
 # from same repo
 import fit_profiles as fp
@@ -186,7 +179,7 @@ def get_cmod_kin_profs(shot, tmin, tmax, pre_shift_TS=False, force_to_zero=False
     except MDSplus.TreeNODATA:
         raise ValueError('No edge Thomson data!')
   
-
+    
     ## This gets triggered sometimes and I'm not quite sure what the use is
 
     try:
@@ -1677,8 +1670,8 @@ def get_fit_gradient(y, c, rhop, fit_type, eq, tmin, tmax, grad_type='analytic',
     # jacobians
     if wrt == 'R': jacobian = np.gradient(rhop, R)
     if wrt == 'rhop': jacobian = np.ones(len(rhop))
-    if wrt == 'psin': jacobian = np.gradient(rhop, psin)
-    if wrt == 'rvol': jacobian = np.gradient(rhop, rvol)
+    #if wrt == 'psin': jacobian = np.gradient(rhop, psin)
+    #if wrt == 'rvol': jacobian = np.gradient(rhop, rvol)
 
     if plot:
 
@@ -1686,7 +1679,16 @@ def get_fit_gradient(y, c, rhop, fit_type, eq, tmin, tmax, grad_type='analytic',
         ax[0].plot(x, y, 'k-')    
         ax[1].plot(x, grad, 'k-')
 
-    return jacobian*grad
+    # some issue with the equilibrium in the core when using eqtools - nothing a few splines cant fix
+    # should really check on this to improve it if interested in core gradients of fit
+
+    from scipy.interpolate import UnivariateSpline
+    R_spl = UnivariateSpline(rhop, R)(rhop)
+    jacobian = np.gradient(rhop, R)
+    jacobian[:200] = np.gradient(rhop, R_spl)[:200] # 200 index is pretty arbitrary - could be good to check                                                               # against other shots
+    jacobian_spl = UnivariateSpline(rhop, jacobian)(rhop)
+
+    return jacobian_spl*grad
 
 
 class kinetic_profile:
@@ -2762,7 +2764,7 @@ def find_pci_qcm(shot, tmin, tmax, samples_exp=7, channel='10', plot=False):
         #popt, pcov = curve_fit(loglaw, freqs[mask_lowk], pows[mask_lowk]*1e3)
     
         p_pow = np.polyfit(freqs[mask_lowk], np.log(pows[mask_lowk]*1e3), deg=1)
-        #from IPython import embed; embed()
+        #from IPython import embed()
         poly_pow = np.exp(np.polyval(p_pow, freqs))/1e3
         poly_ma = np.exp(np.polyval(p_pow, x_ma))/1e3
 

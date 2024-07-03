@@ -723,9 +723,9 @@ if __name__=='__main__':
     tmax = 1.1
 
     # test L-mode
-    #shot = 1000830024
-    #tmin = 0.6
-    #tmax = 0.7
+    shot = 1000830024
+    tmin = 0.6
+    tmax = 0.7
         
 
     ############
