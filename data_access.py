@@ -371,7 +371,77 @@ class Profile(object):
         for p in self.transformed:
             p.X = scipy.delete(p.X, axis, axis=2)
             p.err_X = scipy.delete(p.err_X, axis, axis=2)
+
+    def plot_data(self, ax=None, label_axes=True, **kwargs):
+        """Plot the data stored in this Profile. Only works for X_dim = 1 or 2.
+        
+        Parameters
+        ----------
+        ax : axis instance, optional
+            Axis to plot the result on. If no axis is passed, one is created.
+            If the string 'gca' is passed, the current axis (from plt.gca())
+            is used. If X_dim = 2, the axis must be 3d.
+        label_axes : bool, optional
+            If True, the axes will be labelled with strings constructed from
+            the labels and units set when creating the Profile instance.
+            Default is True (label axes).
+        **kwargs : extra plotting arguments, optional
+            Extra arguments that are passed to errorbar/errorbar3d.
+        
+        Returns
+        -------
+        The axis instance used.
+        """
+        if self.X is not None:
+            if self.X_dim > 2:
+                raise ValueError("Plotting is not supported for X_dim > 2!")
+            if ax is None:
+                f = plt.figure()
+                if self.X_dim == 1:
+                    ax = f.add_subplot(1, 1, 1)
+                elif self.X_dim == 2:
+                    ax = f.add_subplot(111, projection='3d')
+            elif ax == 'gca':
+                ax = plt.gca()
             
+            if 'label' not in kwargs:
+                kwargs['label'] = self.y_label
+            
+            if 'fmt' not in kwargs and 'marker' not in kwargs:
+                kwargs['fmt'] = 'o'
+            
+            if self.X_dim == 1:
+                ax.errorbar(self.X.ravel(), self.y,
+                            yerr=self.err_y, xerr=self.err_X.flatten(),
+                            **kwargs)
+                if label_axes:
+                    ax.set_xlabel(
+                        "%s [%s]" % (self.X_labels[0], self.X_units[0],) if self.X_units[0]
+                        else self.X_labels[0]
+                    )
+                    ax.set_ylabel(
+                        "%s [%s]" % (self.y_label, self.y_units,) if self.y_units
+                        else self.y_label
+                    )
+            elif self.X_dim == 2:
+                errorbar3d(ax, self.X[:, 0], self.X[:, 1], self.y,
+                           xerr=self.err_X[:, 0], yerr=self.err_X[:, 1], zerr=self.err_y,
+                           **kwargs)
+                if label_axes:
+                    ax.set_xlabel(
+                        "%s [%s]" % (self.X_labels[0], self.X_units[0],) if self.X_units[0]
+                        else self.X_labels[0]
+                    )
+                    ax.set_ylabel(
+                        "%s [%s]" % (self.X_labels[1], self.X_units[1],) if self.X_units[1]
+                        else self.X_labels[1]
+                    )
+                    ax.set_zlabel(
+                        "%s [%s]" % (self.y_label, self.y_units,) if self.y_units
+                        else self.y_label
+                    )
+            
+            return ax
 
 class BivariatePlasmaProfile(Profile):
     """Class to represent bivariate (y=f(t, psi)) plasma data.
