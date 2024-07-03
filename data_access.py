@@ -1220,6 +1220,7 @@ def TeTS(shot, **kwargs):
 
 ##########################
 
+import warnings
 import re
 from past.utils import old_div
 
