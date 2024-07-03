@@ -20,7 +20,6 @@ except Exception as _e_MDS:
                       ModuleWarning)
     _has_MDS = False
 
-import eqtools
 import scipy
 
 _X_label_mapping = {'psinorm': r'$\psi_n$',
@@ -739,7 +738,7 @@ def ne(shot, include=['CTS', 'ETS'], TCI_quad_points=None, TCI_flag_threshold=No
     if 'electrons' not in kwargs:
         kwargs['electrons'] = MDSplus.Tree('electrons', shot)
     if 'efit_tree' not in kwargs:
-        kwargs['efit_tree'] = eqtools.CModEFITTree(shot)
+        kwargs['efit_tree'] = CModEFITTree(shot)
     p_list = []
     for system in include:
         if system == 'CTS':
@@ -822,7 +821,7 @@ def neETS(shot, abscissa='RZ', t_min=None, t_max=None, electrons=None,
 
     p.shot = shot
     if efit_tree is None:
-        p.efit_tree = eqtools.CModEFITTree(shot)
+        p.efit_tree = CModEFITTree(shot)
     else:
         p.efit_tree = efit_tree
     p.abscissa = 'RZ'
@@ -922,7 +921,7 @@ def neCTS(shot, abscissa='RZ', t_min=None, t_max=None, electrons=None,
     
     p.shot = shot
     if efit_tree is None:
-        p.efit_tree = eqtools.CModEFITTree(shot)
+        p.efit_tree = CModEFITTree(shot)
     else:
         p.efit_tree = efit_tree
     p.abscissa = 'RZ'
@@ -997,7 +996,7 @@ def Te(shot, include=['CTS', 'ETS', 'FRCECE', 'GPC2', 'GPC', 'Mic'], FRCECE_rate
     if 'electrons' not in kwargs:
         kwargs['electrons'] = MDSplus.Tree('electrons', shot)
     if 'efit_tree' not in kwargs:
-        kwargs['efit_tree'] = eqtools.CModEFITTree(shot)
+        kwargs['efit_tree'] = CModEFITTree(shot)
     p_list = []
     for system in include:
         if system == 'CTS':
@@ -1097,7 +1096,7 @@ def TeETS(shot, abscissa='RZ', t_min=None, t_max=None, electrons=None,
     
     p.shot = shot
     if efit_tree is None:
-        p.efit_tree = eqtools.CModEFITTree(shot)
+        p.efit_tree = CModEFITTree(shot)
     else:
         p.efit_tree = efit_tree
     p.abscissa = 'RZ'
@@ -1198,7 +1197,7 @@ def TeCTS(shot, abscissa='RZ', t_min=None, t_max=None, electrons=None,
     
     p.shot = shot
     if efit_tree is None:
-        p.efit_tree = eqtools.CModEFITTree(shot)
+        p.efit_tree = CModEFITTree(shot)
     else:
         p.efit_tree = efit_tree
     p.abscissa = 'RZ'
