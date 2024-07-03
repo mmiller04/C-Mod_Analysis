@@ -4831,6 +4831,14 @@ class Equilibrium(object):
         """
         raise NotImplementedError()
 
+    def getF(self):
+        """
+        Abstract method.  See child classes for implementation.
+        
+        Returns F=RB_{\Phi}(\Psi), often calculated for grad-shafranov solutions  [psi,t]
+        """
+        raise NotImplementedError()
+
     ####################
     # Helper Functions #
     ####################
@@ -6652,7 +6660,30 @@ class EFITTree(Equilibrium):
                 raise ValueError('data retrieval failed.')
         return self._IpMeas.copy()
 
+    def getF(self):
+        """returns F=RB_{\Phi}(\Psi), often calculated for grad-shafranov 
+        solutions.
+        
+        Note that this method preserves whatever sign convention is used in the
+        tree. For C-Mod, this means that the result should be multiplied by
+        -1 * :py:meth:`getCurrentSign()` in most cases.
 
+        Returns:
+            F (Array): [nt,npsi] array of F=RB_{\Phi}(\Psi)
+
+        Raises:
+            ValueError: if module cannot retrieve data from MDS tree.
+        """
+        if self._fpol is None:
+            try:
+                fNode = self._MDSTree.getNode(self._root+self._gfile+':fpol')
+                self._fpol = fNode.data()
+                self._defaultUnits['_fpol'] = str(fNode.units)
+            except:
+                raise ValueError('data retrieval failed.')
+        return self._fpol.copy()
+
+        
 class CModEFITTree(EFITTree):
     """Inherits :py:class:`eqtools.EFIT.EFITTree` class. Machine-specific data
     handling class for Alcator C-Mod. Pulls EFIT data from selected MDS tree
