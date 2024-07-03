@@ -4823,6 +4823,13 @@ class Equilibrium(object):
         """
         raise NotImplementedError()
 
+    def getCurrentSign(self):
+        """
+        Abstract method.  See child classes for implementation.
+        
+        Returns calculated current direction, where CCW = +
+        """
+        raise NotImplementedError()
 
     ####################
     # Helper Functions #
@@ -5580,7 +5587,7 @@ class Equilibrium(object):
             )
             return self._psiOfRZSpline[idx]
 
-            
+
 class EFITTree(Equilibrium):
     """Inherits :py:class:`Equilibrium <eqtools.core.Equilibrium>` class. 
     EFIT-specific data handling class for machines using standard EFIT tag 
@@ -5999,7 +6006,18 @@ class EFITTree(Equilibrium):
                                                       length_unit)
         return unit_factor * self._zGrid.copy()
 
+    def getCurrentSign(self):
+        """Returns the sign of the current, based on the check in Steve Wolfe's 
+        IDL implementation efit_rz2psi.pro.
 
+        Returns:
+            currentSign (Integer): 1 for positive-direction current, -1 for negative.
+        """
+        if self._currentSign is None:
+            self._currentSign = 1 if scipy.mean(self.getIpMeas()) > 1e5 else -1
+        return self._currentSign
+
+        
 class CModEFITTree(EFITTree):
     """Inherits :py:class:`eqtools.EFIT.EFITTree` class. Machine-specific data
     handling class for Alcator C-Mod. Pulls EFIT data from selected MDS tree
