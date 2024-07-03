@@ -611,7 +611,29 @@ class BivariatePlasmaProfile(Profile):
                     )
                 self.remove_points((self.X[:, -1] >= x_out) | scipy.isnan(self.X[:, -1]))
 
-
+    def drop_axis(self, axis):
+        """Drops a selected axis from `X`.
+        
+        Parameters
+        ----------
+        axis : int
+            The index of the axis to drop.
+        """
+        if self.X_labels[axis] == '$t$':
+            if self.X is not None:
+                self.t_min = self.X[:, 0].min()
+                self.t_max = self.X[:, 0].max()
+            if len(self.transformed) > 0:
+                t_min_T = min([p.X[:, :, 0].min() for p in self.transformed])
+                t_max_T = max([p.X[:, :, 0].max() for p in self.transformed])
+                if self.X is None:
+                    self.t_min = t_min_T
+                    self.t_max = t_max_T
+                else:
+                    self.t_min = min(self.t_min, t_min_T)
+                    self.t_max = max(self.t_max, t_max_T)
+        super(BivariatePlasmaProfile, self).drop_axis(axis)
+        
 
 class Channel(object):
     """Class to store data from a single channel.
