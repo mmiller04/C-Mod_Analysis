@@ -200,3 +200,25 @@ class two_point_model:
         print('lambda_{q} (mm)'+' = {:.2f}'.format(self.lam_q_mm))
         print('T_{e,sep} (eV)'+' = {:.1f}'.format(self.Tu_eV))
 
+
+def shift_profs(time_vec, r_vec, Te, Te_LCFS=75.0):
+    '''
+    Shift in x direction to match chosen temperature (in eV) at LCFS.
+    '''
+    x_of_TeSep =  np.zeros(len(time_vec))
+
+    for ti, tt in enumerate(time_vec):
+
+        x_of_TeSep[ti] = interp1d(Te[ti,:], r_vec, bounds_error=False,fill_value='extrapolate')(Te_LCFS)
+        shift = 1 - x_of_TeSep[ti]
+
+        if np.abs(shift > 0.05):
+            print('Cannot determine accurate shift')
+            x_of_TeSep = 1 # no shift - probe data probably not good
+
+    return x_of_TeSep
+
+
+
+
+

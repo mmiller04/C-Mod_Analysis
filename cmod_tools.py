@@ -256,7 +256,7 @@ def get_cmod_kin_profs(shot, tmin, tmax, pre_shift_TS=False, force_to_zero=False
     ##########################################
 
 
-    shift_profiles = False # this will not shift profiles at all
+    shift_profiles = True # this will not shift profiles at all
 
     lambdaq_type = 'scaling' # profile
     sub_type = 'brunner' #'eich' for 'scaling'; 'log_linear', 'log_quadaratic', 'tanh', etc. for 'profile'
@@ -399,7 +399,7 @@ def get_cmod_kin_profs(shot, tmin, tmax, pre_shift_TS=False, force_to_zero=False
 
     # Shift profiles if shift_profiles is set to True
     if shift_profiles:
-        xSep_TS = fit_2D.shift_profs([1],rhop_kp,Te[None,:]*1e3,Te_LCFS=Te_sep_eV)
+        xSep_TS = pb.shift_profs([1],rhop_kp,Te[None,:]*1e3,Te_LCFS=Te_sep_eV)
     else: 
         xSep_TS = 1
 
@@ -1158,7 +1158,6 @@ def fetch_edge_probes(shot, time, Te_sep_eV, geqdsk=None, rhop_min=0.995, rhop_m
             if shift_profiles:
                 xSep_FSP = interp1d(Te_keV_FSP_fit, x_out, bounds_error=True)(Te_sep_eV*1e-3)
             else:
-                #xSep_FSP = fit_2D.shift_profs([1],X_TS_fit,Te_TS_fit[None,:]*1e3,Te_LCFS=Te_sep_eV)
                 xSep_FSP = 1
             print(f'Shifting of FSP data from fit, in rhop units: {1-xSep_FSP:.4f}')
             
