@@ -6017,7 +6017,25 @@ class EFITTree(Equilibrium):
             self._currentSign = 1 if scipy.mean(self.getIpMeas()) > 1e5 else -1
         return self._currentSign
 
-        
+    def getIpMeas(self):
+        """returns magnetics-measured plasma current.
+
+        Returns:
+            IpMeas (Array): [nt] array of measured plasma current.
+
+        Raises:
+            ValueError: if module cannot retrieve data from MDS tree.
+        """
+        if self._IpMeas is None:
+            try:
+                IpMeasNode = self._MDSTree.getNode(self._root+self._afile+':pasmat')
+                self._IpMeas = IpMeasNode.data()
+                self._defaultUnits['_IpMeas'] = str(IpMeasNode.units)
+            except:
+                raise ValueError('data retrieval failed.')
+        return self._IpMeas.copy()
+
+
 class CModEFITTree(EFITTree):
     """Inherits :py:class:`eqtools.EFIT.EFITTree` class. Machine-specific data
     handling class for Alcator C-Mod. Pulls EFIT data from selected MDS tree
