@@ -4,8 +4,22 @@
 
 ###############################
 
+try:
+    import MDSplus
+    _has_MDS = True
+except Exception as _e_MDS:
+    if isinstance(_e_MDS, ImportError):
+        warnings.warn("MDSplus module could not be loaded -- classes that use "
+                      "MDSplus for data access will not work.",
+                      ModuleWarning)
+    else:
+        warnings.warn("MDSplus module could not be loaded -- classes that use "
+                      "MDSplus for data access will not work. Exception raised "
+                      "was of type %s, message was '%s'."
+                      % (_e_MDS.__class__, _e_MDS.message),
+                      ModuleWarning)
+    _has_MDS = False
 
-import MDSplus
 import eqtools
 import scipy
 
@@ -1205,6 +1219,94 @@ def TeTS(shot, **kwargs):
 ### stuff from eqtools ###
 
 ##########################
+
+from past.utils import old_div
+
+"""The following is a dictionary to implement length unit conversions. The first
+key is the unit are converting FROM, the second the unit you are converting TO.
+Supports: m, cm, mm, in, ft, yd, smoot, cubit, hand
+"""
+_length_conversion = {'m': {'m': 1.0,
+                            'cm': 100.0,
+                            'mm': 1000.0,
+                            'in': 39.37,
+                            'ft': old_div(39.37, 12.0),
+                            'yd': old_div(39.37, (12.0 * 3.0)),
+                            'smoot': old_div(39.37, 67.0),
+                            'cubit': old_div(39.37, 18.0),
+                            'hand': old_div(39.37, 4.0)},
+                      'cm': {'m': 0.01,
+                             'cm': 1.0,
+                             'mm': 10.0,
+                             'in': old_div(39.37, 100.0),
+                             'ft': old_div(39.37, (100.0 * 12.0)),
+                             'yd': old_div(39.37, (100.0 * 12.0 * 3.0)),
+                             'smoot': old_div(39.37, (100.0 * 67.0)),
+                             'cubit': old_div(39.37, (100.0 * 18.0)),
+                             'hand': old_div(39.37, (100.0 * 4.0))},
+                      'mm': {'m': 0.001,
+                             'cm': 0.1,
+                             'mm': 1.0,
+                             'in': old_div(39.37, 1000.0),
+                             'ft': old_div(39.37, (1000.0 * 12.0)),
+                             'yd': old_div(39.37, (1000.0 * 12.0 * 3.0)),
+                             'smoot': old_div(39.37, (1000.0 * 67.0)),
+                             'cubit': old_div(39.37, (1000.0 * 18.0)),
+                             'hand': old_div(39.37, (1000.0 * 4.0))},
+                      'in': {'m': old_div(1.0, 39.37),
+                             'cm': old_div(100.0, 39.37),
+                             'mm': old_div(1000.0, 39.37),
+                             'in': 1.0,
+                             'ft': old_div(1.0, 12.0),
+                             'yd': old_div(1.0, (12.0 * 3.0)),
+                             'smoot': old_div(1.0, 67.0),
+                             'cubit': old_div(1.0, 18.0),
+                             'hand': old_div(1.0, 4.0)},
+                      'ft': {'m': old_div(12.0, 39.37),
+                             'cm': 12.0 * 100.0 / 39.37,
+                             'mm': 12.0 * 1000.0 / 39.37,
+                             'in': 12.0,
+                             'ft': 1.0,
+                             'yd': old_div(1.0, 3.0),
+                             'smoot': old_div(12.0, 67.0),
+                             'cubit': old_div(12.0, 18.0),
+                             'hand': old_div(12.0, 4.0)},
+                      'yd': {'m': 3.0 * 12.0 / 39.37,
+                             'cm': 3.0 * 12.0 * 100.0 / 39.37,
+                             'mm': 3.0 * 12.0 * 1000.0 / 39.37,
+                             'in': 3.0 * 12.0,
+                             'ft': 3.0,
+                             'yd': 1.0,
+                             'smoot': 3.0 * 12.0 / 67.0,
+                             'cubit': 3.0 * 12.0 / 18.0,
+                             'hand': 3.0 * 12.0 / 4.0},
+                      'smoot': {'m': old_div(67.0, 39.37),
+                                'cm': 67.0 * 100.0 / 39.37,
+                                'mm': 67.0 * 1000.0 / 39.37,
+                                'in': 67.0,
+                                'ft': old_div(67.0, 12.0),
+                                'yd': old_div(67.0, (12.0 * 3.0)),
+                                'smoot': 1.0,
+                                'cubit': old_div(67.0, 18.0),
+                                'hand': old_div(67.0, 4.0)},
+                      'cubit': {'m': old_div(18.0, 39.37),
+                                'cm': 18.0 * 100.0 / 39.37,
+                                'mm': 18.0 * 1000.0 / 39.37,
+                                'in': 18.0,
+                                'ft': old_div(18.0, 12.0),
+                                'yd': old_div(18.0, (12.0 * 3.0)),
+                                'smoot': old_div(18.0, 67.0),
+                                'cubit': 1.0,
+                                'hand': old_div(18.0, 4.0)},
+                      'hand': {'m': old_div(4.0, 39.37),
+                               'cm': 4.0 * 100.0 / 39.37,
+                               'mm': 4.0 * 1000.0 / 39.37,
+                               'in': 4.0,
+                               'ft': old_div(4.0, 12.0),
+                               'yd': old_div(4.0, (12.0 * 3.0)),
+                               'smoot': old_div(4.0, 67.0),
+                               'cubit': old_div(4.0, 18.0),
+                               'hand': 1.0}}
 
 class Equilibrium(object):
     """Abstract class of data handling object for magnetic reconstruction outputs.
