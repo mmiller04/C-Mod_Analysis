@@ -4934,6 +4934,212 @@ class Equilibrium(object):
         except KeyError:
             raise ValueError("Unit '%s' is not a recognized length unit!" % end)
 
+    ###########################
+    # Backend Mapping Drivers #
+    ###########################
+    
+    def _psinorm2Quan(self, spline_func, psi_norm, t, each_t=True, return_t=False,
+                      sqrt=False, rho=False, k=3, blob=None,
+                      check_space=False, convert_only=True, length_unit=1,
+                      convert_roa=False):
+        """Convert psinorm to a given quantity.
+        
+        Utility function for computing a variety of quantities given psi_norm
+        and the relevant time indices.
+        
+        Args:
+            spline_func (callable): Function which returns a 1d spline for the 
+                quantity you want to convert into as a function of `psi_norm`
+                given a time index.
+            psi_norm (Array or scalar float): `psi_norm` values to evaluate at.
+            time_idxs (Array or scalar float): Time indices for each of the
+                `psi_norm` values. Shape must match that of `psi_norm`.
+            t: Array or scalar float. Representative time array that `psi_norm`
+                and `time_idxs` was formed from (used to determine output shape).
+        
+        Keyword Args:
+            each_t (Boolean): When True, the elements in `psi_norm` are evaluated at
+                each value in `t`. If True, `t` must have only one dimension (or
+                be a scalar). If False, `t` must match the shape of `psi_norm` or be
+                a scalar. Default is True (evaluate ALL `psi_norm` at EACH element in
+                `t`).
+            return_t (Boolean): Set to True to return a tuple of (`rho`,
+                `time_idxs`), where `time_idxs` is the array of time indices
+                actually used in evaluating `rho` with nearest-neighbor
+                interpolation. (This is mostly present as an internal helper.)
+                Default is False (only return `rho`).
+            sqrt (Boolean): Set to True to return the square root of `rho`. Only
+                the square root of positive values is taken. Negative values are
+                replaced with zeros, consistent with Steve Wolfe's IDL
+                implementation efit_rz2rho.pro. Default is False.
+            rho (Boolean): Set to True to return r/a (normalized minor radius)
+                instead of Rmid. Default is False (return major radius, Rmid).            
+                Note that this will have unexpected results if `spline_func`
+                returns anything other than R_mid.
+            k (positive int): The degree of polynomial spline interpolation to
+                use in converting coordinates.
+            time_idxs (Array with same shape as `psi_norm` or None):
+                The time indices to use (as computed by :py:meth:`_processRZt`).
+                Default is None (compute time indices in method).
+            convert_roa (Boolean): When True, it is assumed that `psi_norm` is
+                actually given as r/a and should be converted to Rmid before
+                being passed to the spline for conversion. Default is False.
+        
+        Returns:
+            (`rho`, `time_idxs`)
+            
+            * **rho** (`Array or scalar float`) - The converted quantity. If
+              all of the input arguments are scalar, then a scalar is returned.
+              Otherwise, a scipy Array is returned.
+            * **time_idxs** (Array with same shape as `rho`) - The indices 
+              (in :py:meth:`self.getTimeBase`) that were used for
+              nearest-neighbor interpolation. Only returned if `return_t` is
+              True.
+        """
+        if blob is None:
+            # When called in this manner, this is just like what was done with
+            # rz2psi.
+            (
+                psi_norm,
+                dum,
+                t,
+                time_idxs,
+                unique_idxs,
+                single_time,
+                single_val,
+                original_shape
+            ) = self._processRZt(
+                psi_norm,
+                psi_norm,
+                t,
+                make_grid=False,
+                check_space=check_space,
+                each_t=each_t,
+                length_unit=length_unit,
+                convert_only=convert_only,
+                compute_unique=True
+            )
+            
+            if self._tricubic:
+                if convert_roa:
+                    psi_norm = self._roa2rmid(psi_norm, t)
+                quan_norm = spline_func(t).ev(t, psi_norm)
+                if rho:
+                    quan_norm = self._rmid2roa(quan_norm, t)
+                quan_norm = quan_norm.reshape(original_shape)
+            else:
+                if single_time:
+                    if convert_roa:
+                        psi_norm = self._roa2rmid(psi_norm, time_idxs[0])
+                    quan_norm = spline_func(time_idxs[0], k=k)(psi_norm)
+                    if rho:
+                        quan_norm = self._rmid2roa(quan_norm, time_idxs[0])
+                    if single_val:
+                        quan_norm = quan_norm[0]
+                    else:
+                        quan_norm = scipy.reshape(quan_norm, original_shape)
+                elif each_t:
+                    quan_norm = scipy.zeros(
+                        scipy.concatenate(([len(time_idxs),], original_shape))
+                    )
+                    for idx, t_idx in enumerate(time_idxs):
+                        if convert_roa:
+                            psi_tmp = self._roa2rmid(psi_norm, t_idx)
+                        else:
+                            psi_tmp = psi_norm
+                        tmp = spline_func(t_idx, k=k)(psi_tmp)
+                        if rho:
+                            tmp = self._rmid2roa(tmp, t_idx)
+                        quan_norm[idx] = tmp.reshape(original_shape)
+                else:
+                    if convert_roa:
+                        psi_norm = self._roa2rmid(psi_norm, time_idxs)
+                    quan_norm = scipy.zeros_like(t, dtype=float)
+                    for t_idx in unique_idxs:
+                        t_mask = (time_idxs == t_idx)
+                        tmp = spline_func(t_idx, k=k)(psi_norm[t_mask])
+                        if rho:
+                            tmp = self._rmid2roa(tmp, t_idx)
+                        quan_norm[t_mask] = tmp
+                    quan_norm = quan_norm.reshape(original_shape)
+            if sqrt:
+                if quan_norm.ndim == 0:
+                    if quan_norm < 0.0:
+                        quan_norm = 0.0
+                else:
+                    scipy.place(quan_norm, quan_norm < 0, 0.0)
+                quan_norm = scipy.sqrt(quan_norm)
+            
+            if return_t:
+                if self._tricubic:
+                    return quan_norm, (t, single_time, single_val, original_shape)
+                else:
+                    return quan_norm, (time_idxs, unique_idxs, single_time, single_val, original_shape)
+            else:
+                return quan_norm
+        else:
+            # When called in this manner, psi_norm has already been expanded
+            # through a pass through rz2psinorm, so we need to be more clever.
+            if self._tricubic:
+                t_proc, single_time, single_val, original_shape = blob
+            else:
+                time_idxs, unique_idxs, single_time, single_val, original_shape = blob
+            # Override original_shape with shape of psi_norm:
+            # psi_norm_shape = psi_norm.shape
+            psi_norm_flat = psi_norm.reshape(-1)
+            if self._tricubic:
+                tt = t_proc.reshape(-1)
+                if convert_roa:
+                    psi_norm_flat = self._roa2rmid(psi_norm_flat, tt)
+                quan_norm = spline_func(t).ev(t_proc, psi_norm_flat)
+                if rho:
+                    quan_norm = self._rmid2roa(quan_norm, tt)
+                quan_norm = quan_norm.reshape(original_shape)
+            else:
+                if convert_roa:
+                    psi_norm_flat = self._roa2rmid(psi_norm_flat, time_idxs)
+                    if each_t:
+                        psi_norm = psi_norm_flat.reshape(-1)
+                if single_time:
+                    quan_norm = spline_func(time_idxs[0], k=k)(psi_norm_flat)
+                    if rho:
+                        quan_norm = self._rmid2roa(quan_norm, time_idxs[0])
+                    if single_val:
+                        quan_norm = quan_norm[0]
+                    else:
+                        quan_norm = scipy.reshape(quan_norm, original_shape)
+                elif each_t:
+                    quan_norm = scipy.zeros(
+                        scipy.concatenate(([len(time_idxs),], original_shape))
+                    )
+                    for idx, t_idx in enumerate(time_idxs):
+                        tmp = spline_func(t_idx, k=k)(psi_norm[idx].reshape(-1))
+                        if rho:
+                            tmp = self._rmid2roa(tmp, t_idx)
+                        quan_norm[idx] = tmp.reshape(original_shape)
+                else:
+                    quan_norm = scipy.zeros_like(time_idxs, dtype=float)
+                    for t_idx in unique_idxs:
+                        t_mask = (time_idxs == t_idx)
+                        tmp = spline_func(t_idx, k=k)(psi_norm_flat[t_mask])
+                        if rho:
+                            tmp = self._rmid2roa(tmp, t_idx)
+                        quan_norm[t_mask] = tmp
+                    quan_norm = quan_norm.reshape(original_shape)
+            
+            if sqrt:
+                if quan_norm.ndim == 0:
+                    if quan_norm < 0:
+                        quan_norm = 0.0
+                else:
+                    scipy.place(quan_norm, quan_norm < 0, 0.0)
+                quan_norm = scipy.sqrt(quan_norm)
+            
+            if return_t:
+                return quan_norm, blob
+            else:
+                return quan_norm
+
 
 class EFITTree(Equilibrium):
     """Inherits :py:class:`Equilibrium <eqtools.core.Equilibrium>` class. 
