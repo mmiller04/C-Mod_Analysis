@@ -5207,7 +5207,7 @@ class Equilibrium(object):
                 Polynomial degree of spline to use. Default is 3.
         
         Returns:
-            :py:class:`trispline.UnivariateInterpolator` or
+            :py:class:`UnivariateInterpolator` or
                 :py:class:`tripline.RectBivariateSpline` depending on whether or
                 not the instance was created with the `tspline` keyword.
         """
@@ -5240,7 +5240,7 @@ class Equilibrium(object):
                     psi_norm_on_grid = psi_norm_on_grid[:decr_idx[0] + 1]
                     R_grid = R_grid[:decr_idx[0] + 1]
                 
-                spline = trispline.UnivariateInterpolator(
+                spline = UnivariateInterpolator(
                     psi_norm_on_grid, R_grid, k=k
                 )
                 try:
@@ -5280,7 +5280,7 @@ class Equilibrium(object):
                 # Correct for the slight issues at the magnetic axis:
                 psi_norm_on_grid[0, :] = 0.0
                 
-                self._RmidSpline = trispline.BivariateInterpolator(
+                self._RmidSpline = BivariateInterpolator(
                     t.ravel(),
                     psi_norm_on_grid.ravel(),
                     R_grid.ravel()
@@ -6104,6 +6104,60 @@ class CModEFITTree(EFITTree):
         
         self.getFluxVol() #getFluxVol is called due to wide use on C-Mod
 
+#######################################
 
+### stuff from trispline in eqtools ###
+
+#######################################
+
+import scipy 
+import scipy.interpolate
+try:
+    from . import _tricub
+except:
+    # Won't be able to use actual trispline, but still can use other routines.
+    pass
+
+class BivariateInterpolator(object):
+    """This class provides a wrapper for `scipy.interpolate.CloughTocher2DInterpolator`.
+    
+    This is necessary because `scipy.interpolate.SmoothBivariateSpline` cannot
+    be made to interpolate, and gives inaccurate answers near the boundaries.
+    """
+    def __init__(self, x, y, z):
+        self._ct_interp = scipy.interpolate.CloughTocher2DInterpolator(
+            scipy.hstack((scipy.atleast_2d(x).T, scipy.atleast_2d(y).T)),
+            z
+        )
+    
+    def ev(self, xi, yi):
+        return self._ct_interp(
+            scipy.hstack((scipy.atleast_2d(xi).T, scipy.atleast_2d(yi).T))
+        )
+
+class UnivariateInterpolator(scipy.interpolate.InterpolatedUnivariateSpline):
+    """Interpolated spline class which overcomes the shortcomings of interp1d
+    (inaccurate near edges) and InterpolatedUnivariateSpline (can't set NaN
+    where it extrapolates).
+    """
+    def __init__(self, *args, **kwargs):
+        self.min_val = kwargs.pop('minval', None)
+        self.max_val = kwargs.pop('maxval', None)
+        if kwargs.pop('enforce_y', True):
+            if self.min_val is None:
+                self.min_val = min(args[1])
+            if self.max_val is None:
+                self.max_val = max(args[1])
+        super(UnivariateInterpolator, self).__init__(*args, **kwargs)
+    
+    def __call__(self, x, *args, **kwargs):
+        x = scipy.asarray(x, dtype=float)
+        out = super(UnivariateInterpolator, self).__call__(x, *args, **kwargs)
+        if self.min_val is not None:
+            out[out < self.min_val.min()] = self.min_val.min()
+        if self.max_val is not None:
+            out[out > self.max_val.max()] = self.max_val.max()
+        out[(x < self.get_knots().min()) | (x > self.get_knots().max())] = scipy.nan
+        return out
 
 
