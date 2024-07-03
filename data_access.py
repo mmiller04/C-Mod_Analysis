@@ -4799,6 +4799,14 @@ class Equilibrium(object):
         """
         raise NotImplementedError()
 
+    def getRGrid(self):
+        """
+        Abstract method.  See child classes for implementation.
+        
+        Returns vector of R-values for psiRZ grid [r]
+        """
+        raise NotImplementedError()
+
     ####################
     # Helper Functions #
     ####################
@@ -5844,6 +5852,23 @@ class EFITTree(Equilibrium):
                 raise ValueError('data retrieval failed.')
         unit_factor = self._getLengthConversionFactor(self._defaultUnits['_rmag'], length_unit)
         return unit_factor * self._rmag.copy()
+
+    def getRGrid(self, length_unit=1):
+        """returns EFIT R-axis.
+
+        Returns:
+            rGrid (Array): [nr] array of R-axis of flux grid.
+
+        Raises:
+            ValueError: if module cannot retrieve data from MDS tree.
+        """
+        if self._rGrid is None:
+            raise ValueError('data retrieval failed.')
+        
+        # Default units should be 'm'
+        unit_factor = self._getLengthConversionFactor(self._defaultUnits['_rGrid'],
+                                                      length_unit)
+        return unit_factor * self._rGrid.copy()
 
 
 class CModEFITTree(EFITTree):
