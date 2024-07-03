@@ -6023,7 +6023,137 @@ class Equilibrium(object):
         """
         return self._RZ2Quan(self._getFSpline, R, Z, t, **kwargs)
 
-
+    def _RZ2Quan(self, spline_func, R, Z, t, **kwargs):
+        """Convert RZ to a given quantity.
+        
+        Utility function for converting R, Z coordinates to a variety of things
+        that are interpolated from something measured on a uniform normalized
+        flux grid, in particular phi_norm, vol_norm and R_mid.
+        
+        If tspline is False for this Equilibrium instance, uses
+        scipy.interpolate.RectBivariateSpline to interpolate in terms of R and
+        Z. Finds the nearest time slices to those given: nearest-neighbor
+        interpolation in time. Otherwise, uses the tricubic package to perform
+        a trivariate interpolation in space and time.
+        
+        Args:
+            spline_func (callable): Function which returns a 1d spline for the
+                quantity you want to convert into as a function of psi_norm
+                given a time index.
+            R (Array-like or scalar float): Values of the radial coordinate to
+                map to Quan. If R and Z are both scalar values, they are used
+                as the coordinate pair for all of the values in t. Must have
+                the same shape as Z unless the make_grid keyword is set. If the
+                make_grid keyword is True, R must have shape (len_R,).
+            Z (Array-like or scalar float): Values of the vertical coordinate to
+                map to Quan. If R and Z are both scalar values, they are used
+                as the coordinate pair for all of the values in t. Must have
+                the same shape as R unless the make_grid keyword is set. If the
+                make_grid keyword is True, Z must have shape (len_Z,).
+            t (Array-like or single value): If t is a single value, it is used
+                for all of the elements of R, Z. If t is array-like and the
+                make_grid keyword is False, t must have the same dimensions as
+                R and Z. If t is array-like and the make_grid keyword is True,
+                t must have shape (len(Z), len(R)).
+        
+        Keyword Args:
+            each_t (Boolean):
+                When True, the elements in `R` and `Z` (or the meshgrid thereof
+                if `make_grid` is True) are evaluated at each value in `t`. If
+                True, `t` must have only one dimension (or be a scalar). If
+                False, `t` must match the shape of `R` and `Z` (or their
+                meshgrid if `make_grid` is True) or be a scalar. Default is True
+                (evaluate ALL `R`, `Z` at each element in `t`).
+            return_t (Boolean):
+                Set to True to return a tuple of (Quan,
+                time_idxs), where time_idxs is the array of time indices
+                actually used in evaluating R_mid with nearest-neighbor
+                interpolation. (This is mostly present as an internal helper.)
+                Default is False (only return Quan).
+            sqrt (Boolean):
+                Set to True to return the square root of Quan. Only
+                the square root of positive values is taken. Negative values
+                are replaced with zeros, consistent with Steve Wolfe's IDL
+                implementation efit_rz2rho.pro. Default is False (return Quan
+                itself).
+            make_grid (Boolean):
+                Set to True to pass R and Z through meshgrid
+                before evaluating. If this is set to True, R and Z must each
+                only have a single dimension, but can have different lengths.
+                When using this option, it is highly recommended to only pass
+                a scalar value for t (such that each point in the flux grid is
+                evaluated at this same value t). Otherwise, t must have the
+                same shape as the resulting meshgrid, and each element in the
+                returned psi array will be at the corresponding time in the t
+                array. Default is False (do not form meshgrid).
+            rho (Boolean):
+                Set to True to return r/a (normalized minor radius)
+                instead of R_mid. Default is False (return major radius, R_mid).
+                Note that this will have unexpected results if spline_func
+                returns anything other than R_mid.
+            k (positive int): The degree of polynomial spline interpolation to
+                use in converting coordinates.
+            length_unit (String or 1):
+                Length unit that R and Z are being given
+                in. If a string is given, it must be a valid unit specifier:
+                
+                    =========== ===========
+                    'm'         meters
+                    'cm'        centimeters
+                    'mm'        millimeters
+                    'in'        inches
+                    'ft'        feet
+                    'yd'        yards
+                    'smoot'     smoots
+                    'cubit'     cubits
+                    'hand'      hands
+                    'default'   meters
+                    =========== ===========
+                    
+                If length_unit is 1 or None, meters are assumed. The default
+                value is 1 (R and Z given in meters). Note that this factor is
+                ONLY applied to the inputs in this function -- if Quan needs to
+                be corrected, it must be done in the calling function.
+        
+        Returns:
+            Quan: Array or scalar float. If all of the input arguments are
+                scalar, then a scalar is returned. Otherwise, a scipy Array
+                instance is returned. If R and Z both have the same shape then
+                Quand has this shape as well. If the make_grid keyword was True
+                then R_mid has shape (len(Z), len(R)).
+            time_idxs: Array with same shape as R_mid. The indices (in
+                self.getTimeBase()) that were used for nearest-neighbor
+                interpolation. Only returned if return_t is True.
+        """
+        return_t = kwargs.get('return_t', False)
+        kwargs['return_t'] = True
+        
+        # Not used by rz2psinorm:
+        k = kwargs.pop('k', 3)
+        rho = kwargs.pop('rho', False)
+        
+        # Make sure we don't convert to sqrtpsinorm first!
+        sqrt = kwargs.pop('sqrt', False)
+        
+        psi_norm, blob = self.rz2psinorm(R, Z, t, **kwargs)
+        
+        kwargs['sqrt'] = sqrt
+        kwargs['return_t'] = return_t
+        
+        # Not used by _psinorm2Quan
+        kwargs.pop('length_unit', 1)
+        kwargs.pop('make_grid', False)
+        
+        kwargs['rho'] = rho
+        return self._psinorm2Quan(
+            spline_func,
+            psi_norm,
+            t,
+            blob=blob,
+            k=k,
+            **kwargs
+        )
+        
 class EFITTree(Equilibrium):
     """Inherits :py:class:`Equilibrium <eqtools.core.Equilibrium>` class. 
     EFIT-specific data handling class for machines using standard EFIT tag 
