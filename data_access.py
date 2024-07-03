@@ -6153,7 +6153,58 @@ class Equilibrium(object):
             k=k,
             **kwargs
         )
+
+    def _getFSpline(self, idx, k=3):
+        """Get spline to convert psinorm to F.
         
+        Returns the spline object corresponding to the passed time index idx,
+        generating it if it does not already exist.
+        
+        Args:
+            idx (Scalar int):
+                The time index to retrieve the flux spline for.
+                This is ASSUMED to be a valid index for the first dimension of
+                self.getFluxGrid(), otherwise an IndexError will be raised.
+        
+        Keyword Args:
+            k (positive int)
+                Polynomial degree of spline to use. Default is 3.
+        
+        Returns:
+            :py:class:`trispline.UnivariateInterpolator` or
+                :py:class:`tripline.RectBivariateSpline` depending on whether or
+                not the instance was created with the `tspline` keyword.
+        """
+        if not self._tricubic:
+            try:
+                return self._FSpline[idx][k]
+            except KeyError:
+                F = self.getF()[idx]
+                spline = trispline.UnivariateInterpolator(
+                    scipy.linspace(0.0, 1.0, len(F)),
+                    F,
+                    k=k
+                )
+                try:
+                    self._FSpline[idx][k] = spline
+                except KeyError:
+                    self._FSpline[idx] = {k: spline}
+                return self._FSpline[idx][k]
+        else:
+            if self._FSpline:
+                return self._FSpline
+            else:
+                F = self.getF()
+                self._FSpline = trispline.RectBivariateSpline(
+                    self.getTimeBase(),
+                    scipy.linspace(0.0, 1.0, F.shape[1]),
+                    F,
+                    bounds_error=False,
+                    s=0
+                )
+                return self._FSpline
+    
+
 class EFITTree(Equilibrium):
     """Inherits :py:class:`Equilibrium <eqtools.core.Equilibrium>` class. 
     EFIT-specific data handling class for machines using standard EFIT tag 
