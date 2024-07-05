@@ -671,47 +671,6 @@ class BivariatePlasmaProfile(Profile):
         if self.y_label != other.y_label:
             self.y_label = self.y_label.split(', ')[0]
 
-    def remove_edge_points(self, allow_conversion=True):
-            """Removes points that are outside the LCFS.
-            
-            Must be called when the abscissa is a normalized coordinate. Assumes
-            that the last column of `self.X` is space: so it will do the wrong
-            thing if you have already taken an average along space.
-            
-            Parameters
-            ----------
-            allow_conversion : bool, optional
-                If True and self.abscissa is 'RZ', then the profile will be
-                converted to psinorm and the points will be dropped. Default is True
-                (allow conversion).
-            """
-            if self.X is not None:
-                if self.abscissa == 'RZ':
-                    if allow_conversion:
-                        warnings.warn(
-                            "Removal of edge points not supported with abscissa RZ. Will "
-                            "convert to psinorm."
-                        )
-                        self.convert_abscissa('psinorm')
-                    else:
-                        raise ValueError(
-                            "Removal of edge points not supported with abscissa RZ!"
-                        )
-                if 'r/a' in self.abscissa or 'norm' in self.abscissa:
-                    x_out = 1.0
-                elif self.abscissa == 'Rmid':
-                    if self.X_dim == 1:
-                        t_EFIT = self._get_efit_times_to_average()
-                        x_out = scipy.mean(self.efit_tree.getRmidOutSpline()(t_EFIT))
-                    else:
-                        assert self.X_dim == 2
-                        x_out = self.efit_tree.getRmidOutSpline()(scipy.asarray(self.X[:, 0]).ravel())
-                else:
-                    raise ValueError(
-                        "Removal of edge points not supported with abscissa %s!" % (self.abscissa,)
-                    )
-                self.remove_points((self.X[:, -1] >= x_out) | scipy.isnan(self.X[:, -1]))
-
     def drop_axis(self, axis):
         """Drops a selected axis from `X`.
         
