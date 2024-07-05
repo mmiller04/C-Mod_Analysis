@@ -166,8 +166,8 @@ def get_cmod_kin_profs(shot, tmin, tmax, pre_shift_TS=False, force_to_zero=False
 
     try:
         # Pull data in sqrt of normalized poloidal flux := rho_poloidal
-        p_Te = data_access.Te(int(shot), include=['ETS'], abscissa='sqrtpsinorm',t_min=tmin,t_max=tmax,efit_tree=e, remove_zeros=True) # in keV
-        p_ne = data_access.ne(int(shot), include=['ETS'], abscissa='sqrtpsinorm',t_min=tmin,t_max=tmax,efit_tree=e, remove_zeros=True) # in 1e20 m^-3
+        p_Te = data_access.Te(int(shot), include=['ETS'], abscissa='sqrtpsinorm',t_min=tmin,t_max=tmax,efit_tree=e) # in keV
+        p_ne = data_access.ne(int(shot), include=['ETS'], abscissa='sqrtpsinorm',t_min=tmin,t_max=tmax,efit_tree=e) # in 1e20 m^-3
 
         # Multiply using TCI calibration if edge flag is turned on
         if edge_ts_mult:

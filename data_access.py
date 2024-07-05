@@ -1126,23 +1126,6 @@ def Te(shot, include=['CTS', 'ETS', 'FRCECE', 'GPC2', 'GPC', 'Mic'], FRCECE_rate
             p_list.append(TeCTS(shot, **kwargs))
         elif system == 'ETS':
             p_list.append(TeETS(shot, **kwargs))
-        elif system == 'FRCECE':
-            p_list.append(TeFRCECE(shot, rate=FRCECE_rate, cutoff=FRCECE_cutoff,
-                                   **kwargs))
-            if remove_ECE_edge:
-                p_list[-1].remove_edge_points()
-        elif system == 'GPC2':
-            p_list.append(TeGPC2(shot, **kwargs))
-            if remove_ECE_edge:
-                p_list[-1].remove_edge_points()
-        elif system == 'GPC':
-            p_list.append(TeGPC(shot, cutoff=GPC_cutoff, **kwargs))
-            if remove_ECE_edge:
-                p_list[-1].remove_edge_points()
-        elif system == 'Mic':
-            p_list.append(TeMic(shot, cutoff=GPC_cutoff, **kwargs))
-            if remove_ECE_edge:
-                p_list[-1].remove_edge_points()
         else:
             raise ValueError("Unknown profile '%s'." % (system,))
     
@@ -6335,103 +6318,6 @@ class Equilibrium(object):
                 
                 return self._RmidToPsiNormSpline
 
-    def _getRmidToPsiNormSpline(self, idx, k=3):
-        """Get the spline which converts Rmid to psinorm.
-        
-        Returns the spline object corresponding to the passed time index idx,
-        generating it if it does not already exist.
-        
-        There are two approaches that come to mind:
-            -- In Steve Wolfe's implementation of efit_rz2mid and efit_psi2rmid,
-                he uses the EFIT output Rmid as a function of normalized flux
-                (i.e., what is returned by self.getRmidPsi()) in the core, then
-                expands the grid beyond this manually.
-            -- A simpler approach would be to just compute the psi_norm(R_mid)
-                grid directly from the radial grid.
-        
-        The latter approach is selected for simplicity.
-        
-        The units of R_mid are always meters, and are converted by the wrapper
-        functions to whatever the user wants.
-        
-        Args:
-            idx (Scalar int):
-                The time index to retrieve the flux spline for.
-                This is ASSUMED to be a valid index for the first dimension of
-                self.getFluxGrid(), otherwise an IndexError will be raised.
-        
-        Keyword Args:
-            k (positive int)
-                Polynomial degree of spline to use. Default is 3.
-        
-        Returns:
-            :py:class:`trispline.UnivariateInterpolator` or
-                :py:class:`tripline.RectBivariateSpline` depending on whether or
-                not the instance was created with the `tspline` keyword.
-        """
-        if not self._tricubic:
-            try:
-                return self._RmidToPsiNormSpline[idx][k]
-            except KeyError:
-                # New approach: create a fairly dense radial grid from the global
-                # flux grid to avoid 1d interpolation problems in the core. The
-                # bivariate spline seems to be a little more robust in this respect.
-                resample_factor = 3
-                R_grid = scipy.linspace(
-                    # self.getMagR(length_unit='m')[idx],
-                    self.getRGrid(length_unit='m')[0],
-                    self.getRGrid(length_unit='m')[-1],
-                    resample_factor * len(self.getRGrid(length_unit='m'))
-                )
-                
-                psi_norm_on_grid = self.rz2psinorm(
-                    R_grid,
-                    self.getMagZ(length_unit='m')[idx] * scipy.ones(R_grid.shape),
-                    self.getTimeBase()[idx]
-                )
-                
-                spline = UnivariateInterpolator(
-                    R_grid, psi_norm_on_grid, k=k
-                )
-                try:
-                    self._RmidToPsiNormSpline[idx][k] = spline
-                except KeyError:
-                    self._RmidToPsiNormSpline[idx] = {k: spline}
-                return self._RmidToPsiNormSpline[idx][k]
-        else:
-            if self._RmidToPsiNormSpline:
-                return self._RmidToPsiNormSpline
-            else:
-                resample_factor = 3 * len(self.getRGrid(length_unit='m'))
-                
-                #generate timebase and R_grid through a meshgrid
-                t, R_grid = scipy.meshgrid(
-                    self.getTimeBase(),
-                    scipy.zeros((resample_factor,))
-                )
-                Z_grid = scipy.dot(
-                    scipy.ones((resample_factor, 1)),
-                    scipy.atleast_2d(self.getMagZ(length_unit='m'))
-                )
-                
-                for idx in scipy.arange(self.getTimeBase().size):
-                    # TODO: This can be done much more efficiently!
-                    R_grid[:, idx] = scipy.linspace(
-                        self.getRGrid(length_unit='m')[0],
-                        self.getRGrid(length_unit='m')[-1],
-                        resample_factor
-                    )
-                
-                psi_norm_on_grid = self.rz2psinorm(R_grid, Z_grid, t, each_t=False)
-                    
-                self._RmidToPsiNormSpline = BivariateInterpolator(
-                    t.flatten(),
-                    R_grid.flatten(),
-                    psi_norm_on_grid.flatten()
-                )
-                
-                return self._RmidToPsiNormSpline
-
 
 class EFITTree(Equilibrium):
     """Inherits :py:class:`Equilibrium <eqtools.core.Equilibrium>` class. 
@@ -7005,6 +6891,7 @@ except:
     # Won't be able to use actual trispline, but still can use other routines.
     pass
 
+
 class BivariateInterpolator(object):
     """This class provides a wrapper for `scipy.interpolate.CloughTocher2DInterpolator`.
     
@@ -7015,11 +6902,6 @@ class BivariateInterpolator(object):
         self._ct_interp = scipy.interpolate.CloughTocher2DInterpolator(
             scipy.hstack((scipy.atleast_2d(x).T, scipy.atleast_2d(y).T)),
             z
-        )
-    
-    def ev(self, xi, yi):
-        return self._ct_interp(
-            scipy.hstack((scipy.atleast_2d(xi).T, scipy.atleast_2d(yi).T))
         )
 
 class UnivariateInterpolator(scipy.interpolate.InterpolatedUnivariateSpline):
@@ -7036,47 +6918,3 @@ class UnivariateInterpolator(scipy.interpolate.InterpolatedUnivariateSpline):
             if self.max_val is None:
                 self.max_val = max(args[1])
         super(UnivariateInterpolator, self).__init__(*args, **kwargs)
-    
-    def __call__(self, x, *args, **kwargs):
-        x = scipy.asarray(x, dtype=float)
-        out = super(UnivariateInterpolator, self).__call__(x, *args, **kwargs)
-        if self.min_val is not None:
-            out[out < self.min_val.min()] = self.min_val.min()
-        if self.max_val is not None:
-            out[out > self.max_val.max()] = self.max_val.max()
-        out[(x < self.get_knots().min()) | (x > self.get_knots().max())] = scipy.nan
-        return out
-
-class RectBivariateSpline(scipy.interpolate.RectBivariateSpline):
-    """the lack of a graceful bounds error causes the fortran to fail hard. 
-    This masks scipy.interpolate.RectBivariateSpline with a proper bound
-    checker and value filler such that it will not fail in use for EqTools
- 
-    Can be used for both smoothing and interpolating data.
-
-    Args:
-        x (1-dimensional float array):
-            1-D array of coordinates in monotonically increasing order.
-        y (1-dimensional float array):
-            1-D array of coordinates in monotonically increasing order.
-        z (2-dimensional float array):
-            2-D array of data with shape (x.size,y.size).
-
-    Keyword Args:
-        bbox (1-dimensional float): Sequence of length 4 specifying the
-            boundary of the rectangular approximation domain.  By default,
-            ``bbox=[min(x,tx),max(x,tx), min(y,ty),max(y,ty)]``.
-        kx (integer): Degrees of the bivariate spline. Default is 3.
-        ky (integer): Degrees of the bivariate spline. Default is 3.
-        s (float): Positive smoothing factor defined for estimation condition,
-            ``sum((w[i]*(z[i]-s(x[i], y[i])))**2, axis=0) <= s``
-            Default is ``s=0``, which is for interpolation.
-    """
-
-    def __init__(self, x, y, z, bbox=[None] *4, kx=3, ky=3, s=0, bounds_error=True, fill_value=scipy.nan):
-
-        super(RectBivariateSpline, self).__init__( x, y, z, bbox=bbox, kx=kx, ky=ky, s=s)
-        self._xlim = scipy.array((x.min(), x.max()))
-        self._ylim = scipy.array((y.min(), y.max()))
-        self.bounds_error = bounds_error
-        self.fill_value = fill_value
