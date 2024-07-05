@@ -22,7 +22,6 @@ import sys
 # from same repo
 import fit_profiles as fp
 import power_balance as pb
-import find_separatrix as fs
 import data_access
 
 # for some Bfields
@@ -283,7 +282,7 @@ def get_cmod_kin_profs(shot, tmin, tmax, pre_shift_TS=False, force_to_zero=False
                                             p_ne.X[:,0], R_ne, p_ne.y, p_ne.err_y,
                                             p_Te.X[:,0], R_Te, p_Te.y, p_Te.err_y)
 
-        Te_sep_eV, lam_q_mm = fs.find_separatrix(sep_dict, fit_type=sub_type, plot=True)
+        Te_sep_eV, lam_q_mm = pb.find_separatrix(sep_dict, fit_type=sub_type, plot=True)
         print('Profile Te LCFS eV', Te_sep_eV)
 
 
