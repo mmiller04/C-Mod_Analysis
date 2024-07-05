@@ -11,7 +11,7 @@ from scipy.constants import Boltzmann as kB, e as q_electron
 import aurora
 
 # from this repo
-import data_access
+import data_access as da
 
 # more external dependencies
 import sys
@@ -19,7 +19,7 @@ sys.path.append('/home/millerma')
 import pysepest.pysepest as pysepest
 
 
-# PFS this is the wrapper for the 2-point model
+# This is the wrapper for the 2-point model and is used when want to use scaling for lambda_q
 def Teu_2pt_model(shot,tmin,tmax, lambdaq_opt=1, rhop_vec=None, ne=None, Te=None):
     '''
     Get 2-point model prediction for Te at the LCFS.
@@ -83,9 +83,9 @@ def Teu_2pt_model(shot,tmin,tmax, lambdaq_opt=1, rhop_vec=None, ne=None, Te=None
 
     # B fields at the LFS LCFS midplane - need equilibrium information
     try: # EFIT20 only exists for shots from certain years
-        e = data_access.CModEFITTree(int(shot), tree='EFIT20', length_unit='m')
+        e = da.CModEFITTree(int(shot), tree='EFIT20', length_unit='m')
     except:
-        e = data_access.CModEFITTree(int(shot), tree='analysis', length_unit='m')
+        e = da.CModEFITTree(int(shot), tree='analysis', length_unit='m')
     Rlcfs = e.rho2rho('psinorm', 'Rmid', 1, time)
     gfilename = '/home/millerma/lya/gfiles/' + f'g{shot}.{str(int(time*1e3)).zfill(5)}'
 
@@ -223,8 +223,8 @@ def shift_profs(time_vec, r_vec, Te, Te_LCFS=75.0):
     return x_of_TeSep
 
 
+# This is the wrapper for the 2-point model and is used when want to use the Te profile for lambda_q
 def find_separatrix(res, fit_type='log_linear', delta_T_threshold=None, plot=False, plot_ind=None):
-
     
     '''
 

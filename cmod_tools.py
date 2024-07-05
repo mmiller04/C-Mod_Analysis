@@ -22,7 +22,7 @@ import sys
 # from same repo
 import fit_profiles as fp
 import power_balance as pb
-import data_access
+import data_access as da
 
 # for some Bfields
 sys.path.append('/home/millerma/poloidalFieldGetter')
@@ -152,9 +152,9 @@ def get_cmod_kin_profs(shot, tmin, tmax, pre_shift_TS=False, force_to_zero=False
     #####################################
 
     try: # EFIT20 only exists for shots from certain years
-        e = data_access.CModEFITTree(int(shot), tree='EFIT20', length_unit='m')
+        e = da.CModEFITTree(int(shot), tree='EFIT20', length_unit='m')
     except:
-        e = data_access.CModEFITTree(int(shot), tree='analysis', length_unit='m')
+        e = da.CModEFITTree(int(shot), tree='analysis', length_unit='m')
                 
     # If want to apply a calibration to ne data from TS against TCI
     if (core_ts_mult & (core_ts_factor == 1)) or (edge_ts_mult & (edge_ts_factor == 1)):
@@ -165,8 +165,8 @@ def get_cmod_kin_profs(shot, tmin, tmax, pre_shift_TS=False, force_to_zero=False
 
     try:
         # Pull data in sqrt of normalized poloidal flux := rho_poloidal
-        p_Te = data_access.Te(int(shot), include=['ETS'], abscissa='sqrtpsinorm',t_min=tmin,t_max=tmax,efit_tree=e) # in keV
-        p_ne = data_access.ne(int(shot), include=['ETS'], abscissa='sqrtpsinorm',t_min=tmin,t_max=tmax,efit_tree=e) # in 1e20 m^-3
+        p_Te = da.Te(int(shot), include=['ETS'], abscissa='sqrtpsinorm',t_min=tmin,t_max=tmax,efit_tree=e) # in keV
+        p_ne = da.ne(int(shot), include=['ETS'], abscissa='sqrtpsinorm',t_min=tmin,t_max=tmax,efit_tree=e) # in 1e20 m^-3
 
         # Multiply using TCI calibration if edge flag is turned on
         if edge_ts_mult:
@@ -192,8 +192,8 @@ def get_cmod_kin_profs(shot, tmin, tmax, pre_shift_TS=False, force_to_zero=False
 
     try:
         # rho_poloidal 
-        p_Te_CTS = data_access.Te(int(shot), include=['CTS'], efit_tree=e, abscissa='sqrtpsinorm',t_min=tmin,t_max=tmax) # in keV
-        p_ne_CTS = data_access.ne(int(shot), include=['CTS'], efit_tree=e, abscissa='sqrtpsinorm',t_min=tmin,t_max=tmax) # in 1e20 m^-3
+        p_Te_CTS = da.Te(int(shot), include=['CTS'], efit_tree=e, abscissa='sqrtpsinorm',t_min=tmin,t_max=tmax) # in keV
+        p_ne_CTS = da.ne(int(shot), include=['CTS'], efit_tree=e, abscissa='sqrtpsinorm',t_min=tmin,t_max=tmax) # in 1e20 m^-3
 
         # Multiply using TCI calibration if core flag is turned on
         if core_ts_mult:
@@ -741,7 +741,7 @@ def create_pe(p_ne, p_Te):
     p_pe_y = np.array(template_y)[sort_template]*np.array(check_y)[sort_check]
     p_pe_err_y = np.sqrt(np.array(template_err_y)[sort_template]**2 + np.array(check_err_y)[sort_check]**2)
 
-    p_pe = data_access.BivariatePlasmaProfile(X_dim=1,
+    p_pe = da.BivariatePlasmaProfile(X_dim=1,
                                                 X_units=[''],
                                                 y_units='kPa',
                                                 X_labels=['$sqrtpsinorm$'],
@@ -766,7 +766,7 @@ def build_profile_prefilter(X, y, y_err, kp):
         y_units='10^{20}'
         y_label=r'$n_e$'
 
-    p = data_access.BivariatePlasmaProfile(X_dim=1,
+    p = da.BivariatePlasmaProfile(X_dim=1,
                                             X_units=[''],
                                             y_units=y_units,
                                             X_labels=['$sqrtpsinorm$'],
@@ -988,7 +988,7 @@ def fetch_edge_probes(shot, time, Te_sep_eV, geqdsk=None, rhop_min=0.995, rhop_m
           ne_ASP_X[:,0] = ne_rhop_asp
           Te_ASP_X[:,0] = Te_rhop_asp
 
-          p_ne_ASP = data_access.BivariatePlasmaProfile(X_dim=1, X_units='', y_units='$10^{20}$ m$^{-3}$',
+          p_ne_ASP = da.BivariatePlasmaProfile(X_dim=1, X_units='', y_units='$10^{20}$ m$^{-3}$',
                                                          X_labels=r'$\\rho_{p}$', y_label=r'$n_e$, ASP')
           p_ne_ASP.abscissa = 'sqrtpsinorm'
           p_ne_ASP.shot = shot
@@ -997,7 +997,7 @@ def fetch_edge_probes(shot, time, Te_sep_eV, geqdsk=None, rhop_min=0.995, rhop_m
           p_ne_ASP.add_data(ne_ASP_X[mask_ne_asp], ne_prof_asp[mask_ne_asp], channels={0: channels}, err_y=ne_unc_prof_asp[mask_ne_asp])
           p_ne_ASP.remake_efit_tree() # needed to add this for some reason on 11/1/22
 
-          p_Te_ASP = data_access.BivariatePlasmaProfile(X_dim=1, X_units='', y_units='keV',
+          p_Te_ASP = da.BivariatePlasmaProfile(X_dim=1, X_units='', y_units='keV',
                                                          X_labels=r'$\\rho_{p}$', y_label=r'$T_e$, ASP')
           p_Te_ASP.abscissa = 'sqrtpsinorm'
           p_Te_ASP.shot = shot
@@ -1084,7 +1084,7 @@ def fetch_edge_probes(shot, time, Te_sep_eV, geqdsk=None, rhop_min=0.995, rhop_m
           Te_FSP_X = np.ones((len(Te_rhop_fsp),1))
           Te_FSP_X[:,0] = Te_rhop_fsp
 
-          p_ne_FSP = data_access.BivariatePlasmaProfile(X_dim=1, X_units='', y_units='$10^{20}$ m$^{-3}$',
+          p_ne_FSP = da.BivariatePlasmaProfile(X_dim=1, X_units='', y_units='$10^{20}$ m$^{-3}$',
                                                          X_labels=r'$\\rho_{p}$', y_label=r'$n_e$, FSP')
           p_ne_FSP.abscissa = 'sqrtpsinorm'
           p_ne_FSP.shot = shot
@@ -1093,7 +1093,7 @@ def fetch_edge_probes(shot, time, Te_sep_eV, geqdsk=None, rhop_min=0.995, rhop_m
           p_ne_FSP.add_data(ne_FSP_X[mask_ne_fsp], ne_prof_fsp[mask_ne_fsp], channels={0: channels}, err_y=ne_unc_prof_fsp[mask_ne_fsp])
           p_ne_FSP.remake_efit_tree() # needed to add this for some reason on 11/1/22
 
-          p_Te_FSP = data_access.BivariatePlasmaProfile(X_dim=1, X_units='', y_units='keV',
+          p_Te_FSP = da.BivariatePlasmaProfile(X_dim=1, X_units='', y_units='keV',
                                                          X_labels=r'$\\rho_{p}$', y_label=r'$T_e$, FSP')
           p_Te_FSP.abscissa = 'sqrtpsinorm'
           p_Te_FSP.shot = shot
@@ -1702,9 +1702,9 @@ class kinetic_profile:
     def fetch_equilibrium(self):
 
         try:
-            self.eq = data_access.CModEFITTree(int(self.shot), tree='EFIT20', length_unit='m')
+            self.eq = da.CModEFITTree(int(self.shot), tree='EFIT20', length_unit='m')
         except:
-            self.eq = data_access.CModEFITTree(int(self.shot), tree='analysis', length_unit='m')
+            self.eq = da.CModEFITTree(int(self.shot), tree='analysis', length_unit='m')
 
     def perturb_mc_err(self, raw, num_mc, maxfev, ped_width, reg, ne=True, verbose=True, plot=False):
         
@@ -3183,9 +3183,9 @@ def map_ts2tci(shot, tmin, tmax, nl_num=4):
     # New method using eqtools
     #gets the magnetic equilibrium at every time point - note EFIT20 is the TS timebase
     try: # EFIT20 only exists for shots from certain years
-        e = data_access.CModEFITTree(int(shot), tree='EFIT20', length_unit='m')
+        e = da.CModEFITTree(int(shot), tree='EFIT20', length_unit='m')
     except:
-        e = data_access.CModEFITTree(int(shot), tree='analysis', length_unit='m')
+        e = da.CModEFITTree(int(shot), tree='analysis', length_unit='m')
     r_ts = np.full(len(z_ts), r_ts) #just to make r_ts the same length as z_ts
     psin_ts = e.rho2rho('RZ', 'psinorm', r_ts, z_ts, t=t_ts, each_t = True)
 
