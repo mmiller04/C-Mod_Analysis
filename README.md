@@ -1,5 +1,7 @@
 # cmod_thomson_analysis
-Routines to fetch and fit TS data from C-Mod MDSplus tree
+Routines to fetch and fit profile data from C-Mod MDSplus tree. It is highly recommended to talk with the diagnostician who collected the data before using it in a public forum. Diagnostic information (and corresponding diagnostician) can generally be found in the C-Mod wiki: https://cmodwiki.psfc.mit.edu
+
+Currently, routines fetch TS data, collected by Jerry Hughes (jwhughes@psfc.mit.edu).
 
 ## Installation
 
