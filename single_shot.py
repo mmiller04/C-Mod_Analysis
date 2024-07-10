@@ -22,7 +22,7 @@ import data_access as da
 
 
 # PFS this is a function to facilitate output for database work
-def assemble_fit_into_dict(shot, tmin, tmax,
+def assemble_into_dict(shot, tmin, tmax,
                 f_ne, f_Te, f_pe,
                 p_ne, p_Te, p_pe,
                 SOL_exp_decay=True, decay_from_LCFS=False): #W/cm^3
@@ -89,10 +89,6 @@ def assemble_fit_into_dict(shot, tmin, tmax,
     Te, Te_std, grad_Te, grad_Te_std = f_Te.y, f_Te.fit_std, f_Te.grad_y, f_Te.grad_fit_std 
     pe, pe_std, grad_pe, grad_pe_std = f_pe.y, f_pe.fit_std, f_pe.grad_y, f_pe.grad_fit_std
    
-    ne_decay_len_SOL = 0.01 # m
-    Te_decay_len_SOL = 0.01 # m
-    pe_decay_len_SOL = 0.01 # m
-
     # transform coordinates:
     try: # EFIT20 only exists for shots from certain years
         e = da.CModEFITTree(int(shot), tree='EFIT20', length_unit='m')
@@ -110,373 +106,98 @@ def assemble_fit_into_dict(shot, tmin, tmax,
     max_rhop_expt = np.maximum(np.max(p_ne.X[:,0]), np.max(p_Te.X[:,0]))  
     print('Experimental TS data extending to rhop={:.4}'.format(max_rhop_expt))
 
-    indLCFS = np.argmin(np.abs(R_kp - Rsep))
-    ind_max = np.argmin(np.abs(rhop_kp - max_rhop_expt))
-    if SOL_exp_decay and decay_from_LCFS: # exponential decay from the LCFS
-        ind_max = indLCFS
-        
-    ne_std_av = copy.deepcopy(ne_std)
-    Te_std_av = copy.deepcopy(Te_std)
-    pe_std_av = copy.deepcopy(pe_std)
-    
-    if SOL_exp_decay:
-        # apply exponential decay outside of region covered by data
-        ne_sol = ne[ind_max-1]*np.exp(-(R_kp[ind_max:] - R_kp[ind_max-1])/ne_decay_len_SOL)
-        grad_ne_sol = ne[ind_max-1]*np.exp(-(R_kp[ind_max:] - R_kp[ind_max-1])/ne_decay_len_SOL)/ne_decay_len_SOL
-        ne_av = np.concatenate((ne[:ind_max], ne_sol))
-        grad_ne_av = np.concatenate((grad_ne[:ind_max], grad_ne_sol))
-
-        Te_sol = Te[ind_max-1]*np.exp(-(R_kp[ind_max:] - R_kp[ind_max-1])/Te_decay_len_SOL)
-        grad_Te_sol = Te[ind_max-1]*np.exp(-(R_kp[ind_max:] - R_kp[ind_max-1])/Te_decay_len_SOL)/Te_decay_len_SOL
-        Te_av = np.concatenate((Te[:ind_max], Te_sol))
-        grad_Te_av = np.concatenate((grad_Te[:ind_max], grad_Te_sol))
-
-        pe_sol = pe[ind_max-1]*np.exp(-(R_kp[ind_max:] - R_kp[ind_max-1])/pe_decay_len_SOL)
-        grad_pe_sol = pe[ind_max-1]*np.exp(-(R_kp[ind_max:] - R_kp[ind_max-1])/pe_decay_len_SOL)/pe_decay_len_SOL
-        pe_av = np.concatenate((pe[:ind_max], pe_sol))
-        grad_pe_av = np.concatenate((grad_pe[:ind_max], grad_pe_sol))
-
-        # set all ne/Te std outside of experimental range to mean of outer-most values
-        ne_edge_unc = np.mean(ne_std[ind_max-3:ind_max])
-        Te_edge_unc = np.mean(Te_std[ind_max-3:ind_max])
-        pe_edge_unc = np.mean(pe_std[ind_max-3:ind_max])
-        ne_std_av[ind_max:] = ne_edge_unc if ne_edge_unc<5e13 else 5e13
-        Te_std_av[ind_max:] = Te_edge_unc if Te_edge_unc<30e-3 else 30e-3
-        pe_std_av[ind_max:] = pe_edge_unc if pe_edge_unc<1.5e12 else 1.5e12
-        
-        grad_ne_edge_unc = np.mean(grad_ne_std[ind_max-3:ind_max])
-        grad_Te_edge_unc = np.mean(grad_Te_std[ind_max-3:ind_max])
-        grad_pe_edge_unc = np.mean(grad_pe_std[ind_max-3:ind_max])
-        grad_ne_std_av[ind_max:] = grad_ne_edge_unc if grad_ne_edge_unc<5e13 else 5e13
-        grad_Te_std_av[ind_max:] = grad_Te_edge_unc if grad_Te_edge_unc<30e-3 else 30e-3
-        grad_pe_std_av[ind_max:] = grad_pe_edge_unc if grad_pe_edge_unc<1.5e12 else 1.5e12
-    else:
-        ne_av = copy.deepcopy(ne)
-        Te_av = copy.deepcopy(Te)
-        pe_av = copy.deepcopy(pe)
-        ne_std_av = copy.deepcopy(ne_std)
-        Te_std_av = copy.deepcopy(Te_std)
-        pe_std_av = copy.deepcopy(pe_std)
-        
-        grad_ne_av = copy.deepcopy(grad_ne)
-        grad_Te_av = copy.deepcopy(grad_Te)
-        grad_pe_av = copy.deepcopy(grad_pe)
-        grad_ne_std_av = copy.deepcopy(grad_ne_std)
-        grad_Te_std_av = copy.deepcopy(grad_Te_std)
-        grad_pe_std_av = copy.deepcopy(grad_pe_std)
-
     # no uncertainties larger than 30 eV outside of LCFS
-    Te_std_av[np.logical_and(R_kp>Rsep, Te_std_av>30e-3)] = 30e-3
-    #Te_std_av_lcfs = Te_std_av[indLCFS:]
-    #Te_std_av_lcfs[Te_std_av_lcfs>30e-3] = 30e-3
-
-    # set ne to cm^-3 and Te in eV and pe in Pa
-    ne_av *= 1e14
-    ne_std_av *= 1e14
-    Te_av *= 1e3
-    Te_std_av *= 1e3
-    pe_av *= 1e13
-    pe_std_av *= 1e13
- 
-    grad_ne_av *= 1e14
-    grad_ne_std_av *= 1e14
-    grad_Te_av *= 1e3
-    grad_Te_std_av *= 1e3
-    grad_pe_av *= 1e3
-    grad_pe_std_av *= 1e3
+    Te_std[np.logical_and(R_kp>Rsep, Te_std>30e-3)] = 30e-3
 
     # set appropriate minima
-    Te_min=3.0    # intended to be a better approximation overall than 3eV
-    Te_av[Te_av<Te_min] = Te_min  
-    ne_av[ne_av<1e12] = 1e12
-    pe_av[pe_av<1.602] = 1.602
+    Te_min=3.0/1e3    # intended to be a better approximation overall than 3eV
+    Te[Te<Te_min] = Te_min  
+    ne[ne<1e12] = 1e12/1e14
+    pe[pe<1.602] = 1.602/1e3
 
     # output results in a dictionary, to allow us to add/subtract keys in the future
-    res = {'fit':{}}
-    out = res['fit']
+    res = {'fit':{}, 'raw':{}}
     res['shot'] = shot
     res['eq'] = e 
     
+    out_fit = res['fit']
+    out_raw = res['raw']
+
     # interpolate kinetic profiles on emissivity radial grid
     ped_start, ped_end = 0.7, 1.05
     min_R = e.rho2rho('sqrtpsinorm', 'Rmid', ped_start, time)
     max_R = e.rho2rho('sqrtpsinorm', 'Rmid', ped_end, time)
 
-    # three different radius coordinates
-    out['R'] = np.linspace(min_R, max_R, 1000)
-    out['rhop'] = e.rho2rho('Rmid', 'sqrtpsinorm', out['R'], time)
-
-    # get rvol coordinate as well - this relies on aurora and geqdsk, so if there's interest, will try to see
-    # if there's a way to do this with eqtools
-
-    '''
-    _rvol, _rhop = get_rvol(geqdsk, dr0=0.03, dr1=0.03)
-    out['rvol'] = interp1d(_rhop, _rvol, fill_value='extrapolate')(out['rhop'])
-    '''
+    # different radius coordinates
+    out_fit['R'] = np.linspace(min_R, max_R, 1000)
+    out_fit['rhop'] = e.rho2rho('Rmid', 'sqrtpsinorm', out_fit['R'], time)
 
     # save profiles
-    out['ne'] = np.exp(interp1d(rhop_kp,np.log(ne_av), bounds_error=False, fill_value=None)(out['rhop'])) # not sure why this is log? maybe it helps interpolation
-    out['Te'] = interp1d(rhop_kp,Te_av, bounds_error=False, fill_value=None)(out['rhop'])
-    out['pe'] = interp1d(rhop_kp,pe_av, bounds_error=False, fill_value=None)(out['rhop'])
+    out_fit['ne'] = interp1d(rhop_kp,ne, bounds_error=False, fill_value=None)(out_fit['rhop'])
+    out_fit['Te'] = interp1d(rhop_kp,Te, bounds_error=False, fill_value=None)(out_fit['rhop'])
+    out_fit['pe'] = interp1d(rhop_kp,pe, bounds_error=False, fill_value=None)(out_fit['rhop'])
  
-    out['grad_ne'] = interp1d(rhop_kp,grad_ne_av, bounds_error=False, fill_value=None)(out['rhop'])
-    out['grad_Te'] = interp1d(rhop_kp,grad_Te_av, bounds_error=False, fill_value=None)(out['rhop'])
-    out['grad_pe'] = interp1d(rhop_kp,grad_pe_av, bounds_error=False, fill_value=None)(out['rhop'])
+    out_fit['grad_ne'] = interp1d(rhop_kp,grad_ne, bounds_error=False, fill_value=None)(out_fit['rhop'])
+    out_fit['grad_Te'] = interp1d(rhop_kp,grad_Te, bounds_error=False, fill_value=None)(out_fit['rhop'])
+    out_fit['grad_pe'] = interp1d(rhop_kp,grad_pe, bounds_error=False, fill_value=None)(out_fit['rhop'])
   
     # and uncertainties
-    out['ne_unc'] = interp1d(rhop_kp,ne_std_av, bounds_error=False, fill_value=None)(out['rhop'])
-    out['Te_unc'] = interp1d(rhop_kp,Te_std_av, bounds_error=False, fill_value=None)(out['rhop'])
-    out['pe_unc'] = interp1d(rhop_kp,pe_std_av, bounds_error=False, fill_value=None)(out['rhop'])
+    out_fit['ne_unc'] = interp1d(rhop_kp,ne_std, bounds_error=False, fill_value=None)(out_fit['rhop'])
+    out_fit['Te_unc'] = interp1d(rhop_kp,Te_std, bounds_error=False, fill_value=None)(out_fit['rhop'])
+    out_fit['pe_unc'] = interp1d(rhop_kp,pe_std, bounds_error=False, fill_value=None)(out_fit['rhop'])
     
-    out['grad_ne_unc'] = interp1d(rhop_kp,grad_ne_std_av, bounds_error=False, fill_value=None)(out['rhop'])
-    out['grad_Te_unc'] = interp1d(rhop_kp,grad_Te_std_av, bounds_error=False, fill_value=None)(out['rhop'])
-    out['grad_pe_unc'] = interp1d(rhop_kp,grad_pe_std_av, bounds_error=False, fill_value=None)(out['rhop'])
+    out_fit['grad_ne_unc'] = interp1d(rhop_kp,grad_ne_std, bounds_error=False, fill_value=None)(out_fit['rhop'])
+    out_fit['grad_Te_unc'] = interp1d(rhop_kp,grad_Te_std, bounds_error=False, fill_value=None)(out_fit['rhop'])
+    out_fit['grad_pe_unc'] = interp1d(rhop_kp,grad_pe_std, bounds_error=False, fill_value=None)(out_fit['rhop'])
 
-    return res
-    
-
-# PFS probably don't need this one either
-def assemble_raw_into_dict(shot,tmin,tmax, p_ne, p_Te, p_pe,
-                        SOL_exp_decay=True, decay_from_LCFS=False):
-
-    ''' Process Lyman-alpha data for a single shot/time interval. 
-        Performs calculation by mapping Ly-a data onto "raw" TS/SP points.
-
-    Parameters
-    ----------
-    shot : int
-        CMOD shot number
-    tmin : float
-        Lower bound of time window
-    tmax : float
-        Upper bound of time window
-    p_ne : profiletools object
-        Electron density object containing experimental data from all loaded diagnostics.
-    p_Te : profiletools object
-        Electron temperature object containing experimental data from all loaded diagnostics.
-    SOL_exp_decay : bool
-        If True, apply an exponential decay (fixed to 1cm length scale) in the region outside of the last radius covered by experimental data.
-    decay_from_LCFS : bool
-        If True, force exponential decay everywhere outside of the LCFS, ignoring any potential
-        data in that region.
-
-    Returns
-    -------
-    res: dict 
-        Contains following keys: 
-
-        R : 1D array
-            Major radius grid
-        roa : 1D array
-            r/a grid
-        rhop : 1D array
-            rhop grid
-        ne : 1D array
-            "Raw" electron density in units of :math:`cm^{-3}`
-        ne_unc : 1D array
-            "Raw" electron density uncertaities in units of :math:`cm^{-3}`
-        Te : 1D array
-            "Raw" electron temperature in units of :math:`eV`
-        Te_unc : 1D array
-            "Raw" electron temperature uncertainties in units of :math:`eV`
-
-    '''
-
-    # transform coordinates:
-    try: # EFIT20 only exists for shots from certain years
-        e = da.CModEFITTree(int(shot), tree='EFIT20', length_unit='m')
-    except:
-        e = da.CModEFITTree(int(shot), tree='analysis', length_unit='m')
-    time = (tmin + tmax)/2
-
-    Rsep = e.rho2rho('sqrtpsinorm', 'Rmid', 1, time)
-
-    # output results in a dictionary, to allow us to add/subtract keys in the future
-    res = {'raw':{}}
-    out = res['raw']
 
     ## calculate also from raw data points
-    # set ne to cm^-3 and Te in eV and pe in Pa
-
-    ne = p_ne.y*1e14
-    ne_unc = p_ne.err_y*1e14
+    ne = p_ne.y
+    ne_unc = p_ne.err_y
     ne_rhop = p_ne.X[:,0]
 
-    Te = p_Te.y*1e3
-    Te_unc = p_Te.err_y*1e3
+    Te = p_Te.y
+    Te_unc = p_Te.err_y
     Te_rhop = p_Te.X[:,0]
     
-    pe = p_pe.y*1e3
-    pe_unc = p_pe.err_y*1e3
+    pe = p_pe.y
+    pe_unc = p_pe.err_y
     pe_rhop = p_pe.X[:,0]
  
     # map onto whichever has fewer points - want to sort points, interpolate, and then unsort them
     map_Te_on_ne = True if len(ne_rhop) < len(Te_rhop) else False
 
     # 
-    out['ne_rhop'] = ne_rhop
-    out['ne'] = ne
-    out['ne_unc'] = ne_unc
+    out_raw['ne_rhop'] = ne_rhop
+    out_raw['ne'] = ne
+    out_raw['ne_unc'] = ne_unc
         
-    out['Te_rhop'] = Te_rhop
-    out['Te'] = Te
-    out['Te_unc'] = Te_unc
+    out_raw['Te_rhop'] = Te_rhop
+    out_raw['Te'] = Te
+    out_raw['Te_unc'] = Te_unc
     
-    out['pe_rhop'] = pe_rhop
-    out['pe'] = pe
-    out['pe_unc'] = pe_unc
+    out_raw['pe_rhop'] = pe_rhop
+    out_raw['pe'] = pe
+    out_raw['pe_unc'] = pe_unc
 
-    out['rhop'] = out['ne_rhop'] if map_Te_on_ne else out['Te_rhop']
+    out_raw['rhop'] = out_raw['ne_rhop'] if map_Te_on_ne else out_raw['Te_rhop']
 
     # make sure ne/Te is not negative
-    ne_min = 1e12
-    Te_min = 10
-    pe_min = 1.602
+    ne_min = 1e12/1e14
+    Te_min = 10/1e3
+    pe_min = 1.602/1e3
 
-    out['ne'] = np.maximum(out['ne'], ne_min)
-    out['Te'] = np.maximum(out['Te'], Te_min)
-    out['pe'] = np.maximum(out['pe'], Te_min)
+    out_raw['ne'] = np.maximum(out_raw['ne'], ne_min)
+    out_raw['Te'] = np.maximum(out_raw['Te'], Te_min)
+    out_raw['pe'] = np.maximum(out_raw['pe'], Te_min)
 
-    # map kps and emiss to midplane
-
-    out['R'] = e.rho2rho('sqrtpsinorm', 'Rmid', out['rhop'], time)
-    out['ne_R'] = e.rho2rho('sqrtpsinorm', 'Rmid', out['ne_rhop'], time)
-    out['Te_R'] = e.rho2rho('sqrtpsinorm', 'Rmid', out['Te_rhop'], time)
-    out['pe_R'] = e.rho2rho('sqrtpsinorm', 'Rmid', out['pe_rhop'], time)
-
-    # get rvol coordinate as well - this relies on aurora and geqdsk, so if there's interest, will try to see
-    # if there's a way to do this with eqtools
-    '''
-    _rvol, _rhop = get_rvol(geqdsk, dr0=0.03, dr1=0.03)
-    out['rvol'] = interp1d(_rhop, _rvol, fill_value='extrapolate')(out['rhop'])
-    out['ne_rvol'] = interp1d(_rhop, _rvol, fill_value='extrapolate')(out['ne_rhop'])
-    out['Te_rvol'] = interp1d(_rhop, _rvol, fill_value='extrapolate')(out['Te_rhop'])
-    out['pe_rvol'] = interp1d(_rhop, _rvol, fill_value='extrapolate')(out['pe_rhop'])
-    '''
+    out_raw['R'] = e.rho2rho('sqrtpsinorm', 'Rmid', out_raw['rhop'], time)
+    out_raw['ne_R'] = e.rho2rho('sqrtpsinorm', 'Rmid', out_raw['ne_rhop'], time)
+    out_raw['Te_R'] = e.rho2rho('sqrtpsinorm', 'Rmid', out_raw['Te_rhop'], time)
+    out_raw['pe_R'] = e.rho2rho('sqrtpsinorm', 'Rmid', out_raw['pe_rhop'], time)
 
     return res
 
-
-def fit_spline(ydata, xdata, yerr, factor=1, degree=3, plot=False):
-
-    # dealing with NaNs
-    w = np.isnan(ydata)
-    
-    xdata = xdata[~w]
-    ydata = ydata[~w]
-    yerr = yerr[~w]
-
-    # need to sort data
-    sorted_inds = np.argsort(xdata)
-    xdata = xdata[sorted_inds]
-    ydata = ydata[sorted_inds]
-    yerr = yerr[sorted_inds]
-    
-    # need to get rid of duplicates
-    xclean = []
-    [xclean.append(x) for x in xdata if x not in xclean]
-    
-    yclean = []
-    yclean_err = []
-    for x in xclean:
-        vals = np.where(xdata == x)[0]
-
-        # clean y
-        yvals = []
-        [yvals.append(ydata[v]) for v in vals]
-        yclean.append(np.mean(yvals))
-
-        # clean yerr
-        yvals_err = []
-        [yvals_err.append(yerr[e]) for e in vals]
-        yclean_err.append(np.mean(yvals_err))
-
-    try:
-    
-        yerr_norm = yclean_err/np.max(yclean_err)
-
-        #spl = UnivariateSpline(xclean, np.log(yclean), s=factor, k=degree) # fit log of function
-        spl = UnivariateSpline(xclean, np.log(yclean), w=1-yerr_norm, s=factor, k=degree) # fit log of function
-    
-        xspl = np.linspace(xclean[0], xclean[-1], 100)
-        yspl = np.exp(spl(xspl)) # need to undo log
-        
-        if plot:
-            fig, ax = plt.subplots()
-            ax.plot(xclean,yclean,'o')
-            ax.plot(xspl,yspl)
-            plt.show()
-    
-    except Exception as e:
-        print('Spline fitting of nn/S_ion did not work because:')
-        print(e)
-        # return null values
-        if len(xdata) > 0:
-            xspl = np.linspace(np.nanmin(xdata), np.nanmax(xdata), 100)
-            yspl = np.full(len(xspl),np.nan)
-        else:
-            xspl, yspl = np.nan, np.nan
-
-    return yspl, xspl
-
-
-def fit_func(ydata, xdata, k):
-
-    # dealing with NaNs
-    w = np.isnan(ydata)
-    xdata = xdata[~w]
-    ydata = ydata[~w]
-
-    # need to sort data
-    sorted_inds = np.argsort(xdata)
-    xdata = xdata[sorted_inds]
-    ydata = ydata[sorted_inds]
-    
-    # need to get rid of duplicates
-    xclean = []
-    [xclean.append(x) for x in xdata if x not in xclean]
-    
-    yclean = []
-    for x in xclean:
-        vals = np.where(xdata == x)[0]
-        yvals = []
-        [yvals.append(ydata[v]) for v in vals]
-        yclean.append(np.mean(yvals))
-    
-    xfit = np.linspace(xclean[0], xclean[-1], 1000)
-    poly = np.polyfit(xclean, np.log(yclean), k)
-    yfit = np.exp(np.polyval(poly,xfit))
-    
-    return yfit, xfit
-
-
-def get_rvol(geqdsk, k=10, dr0=0.1, dr1=0.1, bound_sep=8):
-
-    
-    # function based off Aaron's createradialgrid function in finegrid.py
-
-    nml = {}
-    rhop, _rvol = aurora.grids_utils.get_rhopol_rvol_mapping(geqdsk)
-    
-    rvol_lcfs = interp1d(rhop, _rvol)(1.0)
-    
-    rvol_lcfs = nml['rvol_lcfs'] = np.round(rvol_lcfs, 3)
-
-    nml['K'] = k
-    nml['dr_0'] = dr0
-    nml['dr_1'] = dr1
-    nml['bound_sep'] = bound_sep
-    nml['lim_sep'] = 5
-
-    grid_params = aurora.grids_utils.create_radial_grid(nml)
-    rvol_grid, pro_grid, qpr_grid, prox_aparm = grid_params
-
-    rhop_grid = interp1d(_rvol, rhop, fill_value='extrapolate')(rvol_grid)
-    rhop_grid[0] = 0.0
-    
-    return rvol_grid*1e-2, rhop_grid
-
-    
 
 def gaussian_shading(ax, x, y, y_unc, c='k', min_val=0.0):
     ''' Plot profile with uncertainties displayed as a shading whose color intensity represents a 
@@ -666,9 +387,9 @@ def plot_check_fits(res,  Te_min=10.):
     kinmax_val = np.max(res['fit']['rhop'])
 
     nemin_val = np.minimum(np.nanmin(res['raw']['ne']), np.nanmin(res['fit']['ne'])) - 3e13
-    nemax_val = np.nanmax(res['fit']['ne']) + 1e14    
+    nemax_val = np.nanmax(res['fit']['ne']) + 1
     Temin_val = np.minimum(np.nanmin(res['raw']['Te']), np.nanmin(res['fit']['Te'])) - 50   
-    Temax_val = np.nanmax(res['fit']['Te']) + 200
+    Temax_val = np.nanmax(res['fit']['Te']) + 200/1e3
 
     ax[0].set_xlim([kinmin_val - 0.1, kinmax_val])
     ax[0].set_ylim([nemin_val, nemax_val])
@@ -748,20 +469,12 @@ if __name__=='__main__':
     kp_time = time.time()
     print('Time for fits: ', kp_time - start_time)
 
-    time = (tmin+tmax)/2
 
-    # used to output all the data - probably can streamline this
-    res = assemble_fit_into_dict(shot, tmin, tmax, 
-                                    f_ne, f_Te, f_pe, 
-                                    p_ne, p_Te, p_pe,
-                                    SOL_exp_decay=False)
+    ##### ASSEMBLE RESULTS INTO DICT FOR OUTPUT #####
 
-    res_raw = assemble_raw_into_dict(shot, tmin, tmax, 
-                                        p_ne, p_Te, p_pe, 
-                                        SOL_exp_decay=False)
-
-    res.update(res_raw)
-
+    res = assemble_into_dict(shot, tmin, tmax, 
+                                f_ne, f_Te, f_pe, 
+                                p_ne, p_Te, p_pe)
 
 
     ##### PLOT RESULTS #####
@@ -775,21 +488,6 @@ if __name__=='__main__':
     kp_dict['pe']['var'], kp_dict['pe']['std'], kp_dict['grad_pe']['var'], kp_dict['grad_pe']['std'] = f_pe.y, f_pe.fit_std, -f_pe.grad_y, f_pe.grad_fit_std
     kp_dict['rhop'] = f_ne.x # can grab .x for any parameter (f_ne, f_Te, f_pe) - should all be the same
 
-    ''' not too sure why this is here but gonna leave it in case it helps visualize the fits?
-    # compute std using full distribution
-    
-    from scipy.stats import norm    
-    ne_stats = np.array([norm.fit(f_ne.fit_dist_prefilt[:,jj]) for jj in range(len(f_ne.x))])
-    grad_ne_stats = np.array([norm.fit(f_ne.grad_fit_dist_prefilt[:,jj]) for jj in range(len(f_ne.x))])
-    Te_stats = np.array([norm.fit(f_Te.fit_dist_prefilt[:,jj]) for jj in range(len(f_Te.x))])
-    grad_Te_stats = np.array([norm.fit(f_Te.grad_fit_dist_prefilt[:,jj]) for jj in range(len(f_Te.x))])
-
-    kp_dict['Te']['var'] = kp_dict['ne']['var']
-    kp_dict['Te']['std'] = ne_stats[:,1]
-    
-    kp_dict['grad_Te']['var'] = kp_dict['grad_ne']['var']
-    kp_dict['grad_Te']['std'] = grad_ne_stats[:,1]
-    '''
 
     gaussian_plots = ['grad_ne','grad_Te'] #'Te', 'Te_std', 'grad_Te', 'grad_Te_std'
     plot_kp_gaussian(kp_dict, toplot=gaussian_plots)
