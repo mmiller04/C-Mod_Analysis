@@ -12,7 +12,7 @@ import os, copy
 import pickle as pkl
 from scipy.interpolate import interp1d, RectBivariateSpline, UnivariateSpline, splev, splrep
 from scipy.optimize import curve_fit
-import cmod_tools
+from cmod_tools import get_cmod_kin_profs
 import aurora
 from IPython import embed
 from scipy import stats
@@ -461,7 +461,7 @@ if __name__=='__main__':
     start_time = time.time()
 
     # this is the call to grab TS data and fit it
-    kp_out = cmod_tools.get_cmod_kin_profs(shot, tmin, tmax, probes=['A','F'],
+    kp_out = get_cmod_kin_profs(shot, tmin, tmax, probes=['A','F'],
                                            apply_final_sep_stretch=True, force_to_zero=force_to_zero,
                                            frac_err=False, num_mc=num_mc, core_ts_mult=False, edge_ts_mult=False) 
     f_ne, f_Te, f_pe, p_ne, p_Te, p_pe = kp_out

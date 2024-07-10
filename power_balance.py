@@ -46,11 +46,11 @@ def Teu_2pt_model(shot,tmin,tmax, lambdaq_opt=1, rhop_vec=None, ne=None, Te=None
 
     time = (tmax+tmin)/2.
     
-    P_rad_main = cmod_tools.get_CMOD_var(var='P_rad_main',shot=shot, tmin=tmin, tmax=tmax, plot=False)
-    P_rad_diode = cmod_tools.get_CMOD_var(var='P_rad_diode',shot=shot, tmin=tmin, tmax=tmax, plot=False)
-    P_RF = cmod_tools.get_CMOD_var(var='P_RF',shot=shot, tmin=tmin, tmax=tmax, plot=False)
-    P_oh = cmod_tools.get_CMOD_var(var='P_oh',shot=shot, tmin=tmin, tmax=tmax, plot=False)
-    q95 = cmod_tools.get_CMOD_var(var='q95',shot=shot, tmin=tmin, tmax=tmax, plot=False)
+    P_rad_main = da.get_CMOD_var(var='P_rad_main',shot=shot, tmin=tmin, tmax=tmax, plot=False)
+    P_rad_diode = da.get_CMOD_var(var='P_rad_diode',shot=shot, tmin=tmin, tmax=tmax, plot=False)
+    P_RF = da.get_CMOD_var(var='P_RF',shot=shot, tmin=tmin, tmax=tmax, plot=False)
+    P_oh = da.get_CMOD_var(var='P_oh',shot=shot, tmin=tmin, tmax=tmax, plot=False)
+    q95 = da.get_CMOD_var(var='q95',shot=shot, tmin=tmin, tmax=tmax, plot=False)
 
     eff = 0.8 # value suggested by paper by Bonoli
     P_rad = P_rad_main if P_rad_main is not None else P_rad_diode # sometimes P_rad main will be missing
@@ -66,7 +66,7 @@ def Teu_2pt_model(shot,tmin,tmax, lambdaq_opt=1, rhop_vec=None, ne=None, Te=None
     # if pressure_opt==1:
     #     # Use W_mhd rather than plasma pressure:
     #     vol =  geqdsk['fluxSurfaces']['geo']['vol']
-    #     W_mhd = cmod_tools.get_CMOD_var(var='Wmhd',shot=shot, tmin=tmin, tmax=tmax, plot=False)
+    #     W_mhd = da.get_CMOD_var(var='Wmhd',shot=shot, tmin=tmin, tmax=tmax, plot=False)
     #     p_Pa_vol_avg = 2./3. * W_mhd / vol[-1]
 
     # elif pressure_opt==2:
@@ -76,8 +76,8 @@ def Teu_2pt_model(shot,tmin,tmax, lambdaq_opt=1, rhop_vec=None, ne=None, Te=None
     #     p_Pa_vol_avg = aurora.vol_average(p_Pa[:indLCFS], rhop_vec[:indLCFS], geqdsk=geqdsk)[-1]
 
     # use tor beta to extract vol-average pressure
-    BTaxis = np.abs(cmod_tools.get_CMOD_var(var='Bt',shot=shot, tmin=tmin, tmax=tmax, plot=False))
-    betat = cmod_tools.get_CMOD_var(var='betat',shot=shot, tmin=tmin, tmax=tmax, plot=False)
+    BTaxis = np.abs(da.get_CMOD_var(var='Bt',shot=shot, tmin=tmin, tmax=tmax, plot=False))
+    betat = da.get_CMOD_var(var='betat',shot=shot, tmin=tmin, tmax=tmax, plot=False)
     p_Pa_vol_avg = (betat/100)*BTaxis**2.0/(2.0*4.0*np.pi*1e-7)   # formula used by D.Brunner
 
 

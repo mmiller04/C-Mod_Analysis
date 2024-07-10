@@ -22,6 +22,7 @@ except Exception as _e_MDS:
 
 import scipy
 import matplotlib.pyplot as plt
+import numpy as np
 
 _X_label_mapping = {'psinorm': r'$\psi_n$',
                     'phinorm': r'$\phi_n$',
@@ -1297,6 +1298,248 @@ def TeTS(shot, **kwargs):
     """
     return Te(shot, include=['CTS', 'ETS'], **kwargs)
 
+###########################
+
+### General Data Access ### 
+
+###########################
+
+def smooth(y, box_pts):
+    box = np.ones(box_pts)/box_pts
+    y_smooth = np.convolve(y, box, mode='same')
+    return y_smooth
+
+def get_CMOD_var(var,shot, tmin=None, tmax=None, plot=False, return_time=False):
+    ''' Get tree variable for a CMOD shot. If a time window is given, the value averaged over that window is returned,
+    or else the time series is given.  See list below for acceptable input variables.
+    '''
+
+    if var=='Bt':
+        magnetics = MDSplus.Tree('magnetics', shot)
+        node = magnetics.getNode('\\magnetics::Bt')
+        # node = OMFITmdsValue(server='CMOD', shot=shot, treename='magnetics',TDI='\\magnetics::Bt')
+    elif var=='Bp':
+        # use Bpolav, average poloidal B field --> see definition in Silvagni NF 2020
+        analysis = MDSplus.Tree('analysis', shot)
+        node = analysis.getNode('\\EFIT_AEQDSK:bpolav')
+        # node = OMFITmdsValue(server='CMOD',shot=shot,treename='analysis', TDI='\EFIT_AEQDSK:bpolav')
+    elif var=='Ip':
+        magnetics = MDSplus.Tree('magnetics', shot)
+        node = magnetics.getNode('\\magnetics::Ip')
+        # node = OMFITmdsValue(server='CMOD', shot=shot, treename='magnetics',TDI='\\magnetics::Ip')
+    elif var=='nebar':
+        electrons = MDSplus.Tree('electrons', shot)
+        node = electrons.getNode('\\electrons::top.tci.results:nl_04')
+        # node = OMFITmdsValue(server='CMOD', shot=shot, treename='electrons',TDI='\\electrons::top.tci.results:nl_04')
+    elif var=='P_RF':
+        RF = MDSplus.Tree('RF', shot)
+        node = RF.getNode('\\RF::RF_power_net')
+        # node = OMFITmdsValue(server='CMOD', shot=shot, treename='RF',TDI='\\RF::RF_power_net')
+    elif var=='P_rad_main':
+        try: 
+            spectroscopy = MDSplus.Tree('spectroscopy', shot)
+            node = spectroscopy.getNode('\\spectroscopy::top.bolometer:results:foil:main_power')
+            data = node.data()
+            t = node.dim_of(0).data()
+            # node = OMFITmdsValue(server='CMOD', shot=shot, treename='spectroscopy',TDI='\\spectroscopy::top.bolometer:results:foil:main_power') # W
+            # data = node.data() # just as a check if data exists
+            # t = node.dim_of(0)
+        except:
+            data,t = None, None
+    elif var=='P_rad_diode':
+        spectroscopy = MDSplus.Tree('spectroscopy', shot)
+        node = spectroscopy.getNode('\\spectroscopy::top.bolometer:twopi_diode')
+        # node = OMFITmdsValue(server='CMOD', shot=shot, treename='spectroscopy',TDI='\\spectroscopy::top.bolometer:twopi_diode') # kW
+    elif var=='p_D2':
+        edge = MDSplus.Tree('edge', shot)
+        node = edge.getNode('\\edge::top.gas.ratiomatic.f_side')
+        # node = OMFITmdsValue(server='CMOD', shot=shot, treename='EDGE',TDI='\\EDGE::TOP.GAS.RATIOMATIC.F_SIDE')  # mTorr
+    elif var=='p_E_BOT_MKS':
+        edge = MDSplus.Tree('edge', shot)
+        node = edge.getNode('\\edge::e_bot_mks')
+        # node = OMFITmdsValue(server='CMOD', shot=shot, treename='EDGE',TDI='\\EDGE::E_BOT_MKS')  # mTorr   #lower divertor
+    elif var=='p_B_BOT_MKS':
+        edge = MDSplus.Tree('edge', shot)
+        node = edge.getNode('\\edge::b_bot_mks')
+        # node = OMFITmdsValue(server='CMOD', shot=shot, treename='EDGE',TDI='\\EDGE::B_BOT_MKS')     # mTorr  # lower divertor
+    elif var=='p_F_CRYO_MKS':
+        edge = MDSplus.Tree('edge', shot)
+        node = edge.getNode('\\edge::f_cryo_mks')
+        # node = OMFITmdsValue(server='CMOD', shot=shot, treename='EDGE',TDI='\\EDGE::F_CRYO_MKS')     # mTorr, only post 2006
+    elif var=='p_G_SIDE_RAT':
+        edge = MDSplus.Tree('edge', shot)
+        node = edge.getNode('\\edge::g_side_rat')
+        # node = OMFITmdsValue(server='CMOD', shot=shot, treename='EDGE',TDI='\\EDGE::G_SIDE_RAT')   
+    elif var=='q95':
+        analysis = MDSplus.Tree('analysis', shot)
+        node = analysis.getNode('\\efit_aeqdsk:qpsib')
+        # node = OMFITmdsValue(server='CMOD',shot=shot, treename='analysis', TDI='\EFIT_AEQDSK:qpsib')
+    elif var=='Wmhd':
+        analysis = MDSplus.Tree('analysis', shot)
+        node = analysis.getNode('\\efit_aeqdsk:wplasm')
+        # node = OMFITmdsValue(server='CMOD',shot=shot, treename='analysis', TDI='\EFIT_AEQDSK:wplasm')
+    elif var=='dWdt':
+        t,data = get_dWdt(shot, tmin=tmin, tmax=tmax)   # tries to fit Wmhd and get gradient
+    elif var=='areao':
+        analysis = MDSplus.Tree('analysis', shot)
+        node = analysis.getNode('\\efit_aeqdsk:areao')
+        # node = OMFITmdsValue(server='CMOD',shot=shot, treename='analysis', TDI='\EFIT_AEQDSK:areao')
+    elif var=='betat':
+        analysis = MDSplus.Tree('analysis', shot)
+        node = analysis.getNode('\\efit_aeqdsk:betat')
+        # node = OMFITmdsValue(server='CMOD',shot=shot, treename='analysis', TDI='\EFIT_AEQDSK:betat')
+    elif var=='betap':
+        analysis = MDSplus.Tree('analysis', shot)
+        node = analysis.getNode('\\efit_aeqdsk:betap')
+        # node = OMFITmdsValue(server='CMOD',shot=shot, treename='analysis', TDI='\EFIT_AEQDSK:betap')
+    elif var=='P_oh':
+        t,data = get_P_ohmic(shot)   # accurate routine to estimate Ohmic power
+    elif var=='li':
+        analysis = MDSplus.Tree('analysis', shot)
+        node = analysis.getNode('\\efit_aeqdsk:ali')
+        # node = OMFITmdsValue(server='CMOD', shot=shot, treename='ANALYSIS',TDI='\\analysis::EFIT_AEQDSK:ali')
+    elif var=='h_alpha':
+        spectroscopy = MDSplus.Tree('spectroscopy', shot)
+        node = spectroscopy.getNode('\\ha_2_bright')
+        # node = OMFITmdsValue(server='CMOD',shot=shot, treename='spectroscopy', TDI='\ha_2_bright')
+    elif var=='cryo_on':
+        edge = MDSplus.Tree('edge', shot)
+        ndoe = edge.getNode('\\edge::top.cryopump:message')
+        # node = OMFITmdsValue(server='CMOD',shot=shot, treename='EDGE', TDI='\EDGE::TOP.CRYOPUMP:MESSAGE')
+    elif var=='ssep':
+        analysis = MDSplus.Tree('analysis', shot)
+        node = analysis.getNode('\\efit_aeqdsk:ssep')
+        # node = OMFITmdsValue(server='CMOD', shot=shot, treename='analysis',TDI='\EFIT_AEQDSK:ssep')
+    elif var=='Lgap':
+        analysis = MDSplus.Tree('analysis', shot)
+        node = analysis.getNode('\\efit_aeqdsk:oleft')
+        # node = OMFITmdsValue(server='CMOD', shot=shot, treename='analysis',TDI='\EFIT_AEQDSK:oleft')
+    elif var=='Rgap':
+        analysis = MDSplus.Tree('analysis', shot)
+        node = analysis.getNode('\\efit_aeqdsk:oright')
+        # node = OMFITmdsValue(server='CMOD', shot=shot, treename='analysis',TDI='\EFIT_AEQDSK:oright')
+    elif var=='kappa':
+        analysis = MDSplus.Tree('analysis', shot)
+        node = analysis.getNode('\\efit_aeqdsk:eout')
+        # node = OMFITmdsValue(server='CMOD', shot=shot, treename='analysis',TDI='\EFIT_AEQDSK:eout')
+    elif var=='Udelta':
+        analysis = MDSplus.Tree('analysis', shot)
+        node = analysis.getNode('\\efit_aeqdsk:doutu')
+        node = OMFITmdsValue(server='CMOD', shot=shot, treename='analysis',TDI='\EFIT_AEQDSK:doutu')
+    elif var=='Ldelta':
+        analysis = MDSplus.Tree('analysis', shot)
+        node = analysis.getNode('\\efit_aeqdsk:doutl')
+        # node = OMFITmdsValue(server='CMOD', shot=shot, treename='analysis',TDI='\EFIT_AEQDSK:doutl')
+    else:
+        raise ValueError('Variable '+var+' was not recognized!')
+
+
+    if var not in ['P_oh','dWdt', 'P_rad_main']: 
+        data = node.data()
+        t = node.dim_of(0)
+
+        if var=='p_E_BOT_MKS' or var=='p_B_BOT_MKS' or var=='p_F_CRYO_MKS':  # anomalies in data storage
+            if data is not None:
+                data = data[0,:]
+    
+    if var=='P_rad_diode':
+        #if radvar == 'main', no need to scale
+        if data is not None:
+            # From B.Granetz's matlab scripts: factor of 4.5 from cross-calibration with 2pi_foil during flattop
+            # NB: Bob's scripts mention that this is likely not accurate when p_rad (uncalibrated) <= 0.5 MW
+            #data *= 4.5
+            data *= 3 # suggestion by JWH
+            # data from the twopi_diode is output in kW. Change to MW for consistency
+            data /= 1e3
+    if var=='P_rad_main':
+        # if radvar == 'main', just need to convert to MW
+        try:
+            data /= 1e6
+        except:
+            print('No P_rad_main')
+
+    if var=='nebar':
+        # nl needs to be divided by the chord length
+        node_l = analysis.getNode('\\efit_aeqdsk:rco2v')
+        # node_l = OMFITmdsValue(server='CMOD', shot=shot, treename='analysis', TDI='\EFIT_AEQDSK:RCO2V')
+
+        try:
+            l04_m = node_l.data()[:,3]/1e2 # 4th channel, convert cm to m
+            t_l04 = node_l.dim_of(1).data()
+
+            # need to interpolate onto nl04 timebase
+            from scipy.interpolate import interp1d
+            l04_m_tb = interp1d(t_l04, l04_m, bounds_error=False, fill_value='extrapolate')(t)
+       
+            zero_inds = np.where(l04_m_tb == 0)[0]
+            l04_m_tb[zero_inds] = 1e-10 # dummy to avoid error
+
+            if len(data.shape) > 1: # error catcher
+                data = data[:,0]
+            data /= l04_m_tb # nl04/l04
+        except:
+            print('ne_l or chord length not available')
+            t, data = np.nan, np.nan
+    
+    if var=='ssep':
+        mask_ssep = np.logical_and(data<3, data>-3)
+        data = data[mask_ssep]
+
+    if plot:
+        plt.figure()
+        plt.plot(t,data)
+        plt.xlabel('time [s]')
+        plt.ylabel(var)
+
+    if tmin is not None and tmax is not None and t is not None:
+        tidx0 = np.argmin(np.abs(t - tmin))
+        tidx1 = np.argmin(np.abs(t - tmax))
+        return np.mean(data[tidx0:tidx1])
+    else:
+        if return_time:
+            return t, data
+        else:
+            return data
+
+def get_P_ohmic(shot):
+    ''' Get Ohmic power
+
+    Translated/adapted from scopes:
+    _vsurf =  deriv(smooth1d(\ANALYSIS::EFIT_SSIBRY,2))*$2pi ;
+    _ip=abs(\ANALYSIS::EFIT_AEQDSK:CPASMA);
+    _li = \analysis::efit_aeqdsk:ali;
+    _L = _li*6.28*67.*1.e-9;
+    _vi = _L*deriv(smooth1d(_ip,2));
+    _poh=_ip*(_vsurf-_vi)/1.e6
+    '''
+
+    # psi at the edge:
+    analysis = MDSplus.Tree('analysis', shot)
+    ssibry_node = analysis.getNode('\\analysis::efit_ssibry')
+    # ssibry_node = OMFITmdsValue(server='CMOD', shot=shot, treename='ANALYSIS',TDI='\\analysis::efit_ssibry')
+    time = ssibry_node.dim_of(0).data()
+    ssibry = ssibry_node.data()
+    
+    # total voltage associated with magnetic flux inside LCFS
+    vsurf = np.gradient(smooth(ssibry,5),time) * 2 * np.pi
+
+    # calculated plasma current
+    ip_node = analysis.getNode('\\analysis::efit_aeqdsk:cpasma')
+    # ip_node= OMFITmdsValue(server='CMOD', shot=shot, treename='ANALYSIS',TDI='\\analysis::EFIT_AEQDSK:CPASMA')
+    ip = np.abs(ip_node.data())
+
+    # internal inductance
+    li = analysis.getNode('\\analysis::efit_aeqdsk:ali').data()
+    # li = OMFITmdsValue(server='CMOD', shot=shot, treename='ANALYSIS',TDI='\\analysis::EFIT_AEQDSK:ali').data()
+
+    R_cm = 67.0 # value chosen/fixed in scopes
+    L = li*2.*np.pi*R_cm*1e-9  # total inductance (nH)
+    
+    #vi = L * np.gradient(smooth(ip,2),time)   # induced voltage
+    vi = L * np.gradient(smooth(ip,2),time) + 0.5*ip*np.gradient(smooth(L,2),time)  # induced voltage - 2nd term added from /home/jwhughes/idl/get_confinement.pro    
+
+    P_oh = ip * (vsurf - vi)/1e6 # P=IV   #MW
+    return time, P_oh
 
 
 ##########################
