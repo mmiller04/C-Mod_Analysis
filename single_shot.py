@@ -444,9 +444,9 @@ if __name__=='__main__':
     tmax = 1.1
 
     # test L-mode
-    shot = 1000830024
-    tmin = 0.6
-    tmax = 0.7
+    shot = 1070829009
+    tmin = 1.0
+    tmax = 1.05
         
 
     ############
@@ -461,7 +461,7 @@ if __name__=='__main__':
     start_time = time.time()
 
     # this is the call to grab TS data and fit it
-    kp_out = get_cmod_kin_profs(shot, tmin, tmax, probes=['A','F'],
+    kp_out = get_cmod_kin_profs(shot, tmin, tmax,
                                            apply_final_sep_stretch=True, force_to_zero=force_to_zero,
                                            frac_err=False, num_mc=num_mc, core_ts_mult=False, edge_ts_mult=False) 
     f_ne, f_Te, f_pe, p_ne, p_Te, p_pe = kp_out

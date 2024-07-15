@@ -31,7 +31,7 @@ import data_access as da
 #~# This is the function that grabs the data and fits it - probably too big of a function and should break it down into chunks
 
 def get_cmod_kin_profs(shot, tmin, tmax, pre_shift_TS=False, force_to_zero=False, frac_err=True, num_mc=100,
-                       probes=['A'], osborne_fit=False, apply_final_sep_stretch=False, core_ts_mult=False, edge_ts_mult=False, core_ts_factor=1, edge_ts_factor=1):
+                       osborne_fit=False, apply_final_sep_stretch=False, core_ts_mult=False, edge_ts_mult=False, core_ts_factor=1, edge_ts_factor=1):
     '''Function to load and fit modified-tanh functions to C-Mod ne and Te.
 
     This function is designed to be robust for operation within the construction of
@@ -292,7 +292,7 @@ def get_cmod_kin_profs(shot, tmin, tmax, pre_shift_TS=False, force_to_zero=False
     reg = [8] # these will determine which coefficients in the fit are set to zero to prevent overfitting
     reg2 = [7,8] # this should help cases that have shallower gradients
     edge_chi = True # this will use chisqr from the edge instead of the whole profile to evaluate goodness of fit
-    plot_fit = True # this will plot the best mtanh fit
+    plot_fit = False # this will plot the best mtanh fit
 
     rhop_min_fit = 0 # if only want to fit to some portion of the data (i.e. only the pedestal for example)
     rhop_max_fit = 1.2 # the max value
@@ -1637,67 +1637,6 @@ def check_probes_avail(shot, loc):
                 print('Warning: {} data was bad'.format(node_str))
 
     return probes_avail
-
-def get_dWdt(shot, tmin=None, tmax=None, plot=False):
-    '''Function to do X
-
-    This function does X by doing Y   
- 
-    Parameters
-    ----------
-    parameter : type
-        This is a parameter
-
-    Returns
-    -------
-    returned : type
-        This is what is returned
-
-    '''
-        
-    analysis = MDSplus.Tree('analysis', shot)
-    node = analysis.getNode('\\efit_aeqdsk:wplasm')
-    # node = OMFITmdsValue(server='CMOD',shot=shot, treename='analysis', TDI='\EFIT_AEQDSK:wplasm')
-    
-    Wmhd = node.data()
-    t = node.dim_of(0).data()
-
-    def powerlaw(x,a,b):
-        return a*x**b
-
-
-    from scipy.interpolate import interp1d, UnivariateSpline
-    from scipy.optimize import curve_fit
-    
-    if tmin is not None and tmax is not None:
-        tidx0 = np.argmin(np.abs(t - (tmin-0.05))) # give some slack for better fit
-        tidx1 = np.argmin(np.abs(t - (tmax+0.05))) # give some slack for better fit
-
-        # cut the window        
-        t_win = t[tidx0:tidx1]
-        Wmhd_win = Wmhd[tidx0:tidx1]
-
-        tt = np.linspace(t_win[0], t_win[-1], int(len(t_win)*10)) # increase resolution by a lot to help derivative
-        popt, pcov = curve_fit(powerlaw, t_win, Wmhd_win)
-        
-        Wmhd_fit = powerlaw(tt, *popt)        
-        grad_Wmhd_fit = np.gradient(Wmhd_fit, tt)
-        
-        return tt, grad_Wmhd_fit/1e6
-
-
-    else:
-        tt = np.linspace(t[0], t[-1], int(len(t)*10)) # increase resolution by a lot to help derivative
-        popt, pcov = curve_fit(powerlaw, t, Wmhd) # probably a bad function to use for the whole time trace - would need to check this
-        
-        Wmhd_fit = powerlaw(tt, *popt)        
-        grad_Wmhd_fit = np.gradient(Wmhd_fit, tt)
-        
-        # interpolate back to t grid
-        grad_Wmhd = interp1d(tt, grad_Wmhd_fit)(t)
-    
-        return t,grad_Wmhd/1e6
-
 
 def wrap_qcm(shot, tmin, tmax, samples_exp=7, plot=False, plot_chan='10'):
 
