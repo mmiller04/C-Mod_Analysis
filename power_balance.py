@@ -58,7 +58,7 @@ def Teu_2pt_model(shot,tmin,tmax, lambdaq_opt=1, rhop_vec=None, ne=None, Te=None
 
     if Psol<0:
         print('Inaccuracies in Psol determination do not allow a precise 2-point model prediction. Set Te_sep=60 eV')
-        return 60.
+        return 60., 1.
 
 
     # alternate ways of calculating pressure for Brunner scaling - can be added back in later if desired

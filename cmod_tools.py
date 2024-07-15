@@ -488,8 +488,8 @@ def get_cmod_kin_profs(shot, tmin, tmax, pre_shift_TS=False, force_to_zero=False
 
             fig, ax = plt.subplots(2, sharex=True)
             ax[0].errorbar(p_ne.X[:,0], p_ne.y, yerr=p_ne.err_y, fmt='o', label='raw')
-            ax[0].plot(f_ne.x, f_ne.y, lw=2.5, label='fit')
-            ax[0].plot(f_ne.x, f_ne.fit_mean, lw=2.5, label='mean_fit')
+            ax[0].plot(f_ne.x, f_ne.y, lw=2.5, label='single fit')
+            ax[0].plot(f_ne.x, f_ne.fit_mean, lw=2.5, label='MC mean fit')
 
             ax[1].errorbar(p_Te.X[:,0], p_Te.y, yerr=p_Te.err_y, fmt='o')
             ax[1].plot(f_Te.x, f_Te.y, lw=2.5)
@@ -528,14 +528,20 @@ def get_cmod_kin_profs(shot, tmin, tmax, pre_shift_TS=False, force_to_zero=False
 
 
     if plot_fit:
-        p_ne.plot_data()
+        p_ne_pf.plot_data()
+        p_ne.plot_data(ax='gca')
         plt.gca().plot(rhop_kp, ne)
+        plt.gca().legend(['fit','discarded','retained'])
 
-        p_Te.plot_data()
+        p_Te_pf.plot_data()
+        p_Te.plot_data(ax='gca')
         plt.gca().plot(rhop_kp, Te)
+        plt.gca().legend(['fit','discarded','retained'])
         
-        p_pe.plot_data()
+        p_pe_pf.plot_data()
+        p_pe.plot_data(ax='gca')
         plt.gca().plot(rhop_kp, pe)
+        plt.gca().legend(['fit','discarded','retained'])
 
     
     # output fits + profiletools objects for ne and Te so that experimental data points are passed too
@@ -574,15 +580,15 @@ def prefit_filter(p_ne, p_Te, TS=True):
     p_Te.remove_points(np.logical_and(p_Te.X[:,0]<1.03, p_Te.y<0.015))  # TS Te should be >15 eV inside near SOL - may want to check whether this is true
 
     # remove points with excessively large error bars
-    p_ne.remove_points(p_ne.err_y>1) # 10^20 m^-3
-    p_Te.remove_points(np.logical_and(p_Te.X[:,0]>0.98, p_Te.err_y>0.2)) # max 200 eV of uncertainty in the pedestal
+    #p_ne.remove_points(p_ne.err_y>1) # 10^20 m^-3
+    #p_Te.remove_points(np.logical_and(p_Te.X[:,0]>0.98, p_Te.err_y>0.2)) # max 200 eV of uncertainty in the pedestal
     
     # Remove points with too high values in the SOL:
     p_ne.remove_points(np.logical_and(p_ne.X[:,0]>1.0, p_ne.y>1.5)) # 5e20
     p_Te.remove_points(np.logical_and(p_Te.X[:,0]>1.0, p_Te.y>0.25)) # 250 eV
 
     # Remove ne points with too high uncertainty in the pedestal and SOL:
-    p_ne.remove_points(np.logical_and(p_ne.X[:,0]>0.9, p_ne.err_y>0.3)) # 3e19 m^-3
+    #p_ne.remove_points(np.logical_and(p_ne.X[:,0]>0.9, p_ne.err_y>0.3)) # 3e19 m^-3
     #p_ne.remove_points(np.logical_and(p_ne.X[:,0]>1.0, p_ne.err_y>0.2)) # 2e19 m^-3 , less in the SOL
     #if shot==1100308004:
     #    p_ne.remove_points(np.logical_and(p_ne.X[:,0]>1.0, p_ne.err_y>0.2)) # 2e19 m^-3 , less in the SOL
@@ -591,7 +597,7 @@ def prefit_filter(p_ne, p_Te, TS=True):
     p_Te.remove_points(np.logical_and(p_Te.X[:,0]>1.0, p_Te.err_y>0.1))  # 100 eV
 
     # trivial clean up of Te in the pedestal
-    p_Te.remove_points(np.logical_and(p_Te.X[:,0]>0.9, p_Te.err_y>0.5))  # 500 eV
+    #p_Te.remove_points(np.logical_and(p_Te.X[:,0]>0.9, p_Te.err_y>0.5))  # 500 eV
     p_Te.remove_points(np.logical_and(p_Te.X[:,0]<0.98, p_Te.y<0.05))  # Te inside r/a=0.98 must always be >50 eV
     p_Te.remove_points(np.logical_and(p_Te.X[:,0]<0.95, p_Te.y<0.1))  # Te inside r/a=0.95 must always be >100 eV
    
@@ -712,43 +718,43 @@ def create_pe(p_ne, p_Te):
     template_X = [p_template_X[tX] for tX in template_inds if tX not in unlist_templatelist]
     for subtemp in template_avg: # for some reason list comprehension doesn't work
         template_X += [np.mean(p_template_X[subtemp])]
-    check_X = [p_check_X[tX] for tX in template_inds if tX not in unlist_checklist]
+    check_X = [p_check_X[tX] for tX in check_inds if tX not in unlist_checklist]
     for subcheck in check_avg:
         check_X += [np.mean(p_check_X[subcheck])]
     
     template_y = [p_template_y[ty] for ty in template_inds if ty not in unlist_templatelist]
     for subtemp in template_avg:
         template_y += [np.mean(p_template_y[subtemp])]
-    check_y = [p_check_y[ty] for ty in template_inds if ty not in unlist_checklist]
+    check_y = [p_check_y[ty] for ty in check_inds if ty not in unlist_checklist]
     for subcheck in check_avg:
         check_y += [np.mean(p_check_y[subcheck])]
     
     template_err_y = [p_template_err_y[tyy] for tyy in template_inds if tyy not in unlist_templatelist]
     for subtemp in template_avg:
         template_err_y += [np.mean(p_template_err_y[subtemp])]
-    check_err_y = [p_check_err_y[tyy] for tyy in template_inds if tyy not in unlist_checklist]
+    check_err_y = [p_check_err_y[tyy] for tyy in check_inds if tyy not in unlist_checklist]
     for subcheck in check_avg:
         check_err_y += [np.mean(p_check_err_y[subcheck])]
     
     sort_template = np.argsort(template_X)
     sort_check = np.argsort(check_X)
  
-    p_pe_X = np.array(template_X)[sort_template]
-    p_pe_y = np.array(template_y)[sort_template]*np.array(check_y)[sort_check]
-    p_pe_err_y = np.sqrt(np.array(template_err_y)[sort_template]**2 + np.array(check_err_y)[sort_check]**2)
+    pe_X = np.array(template_X)[sort_template]
+    pe_y = np.array(template_y)[sort_template]*np.array(check_y)[sort_check]
+    pe_err_y = np.sqrt(np.array(template_err_y)[sort_template]**2 + np.array(check_err_y)[sort_check]**2)
 
-    p_pe = da.BivariatePlasmaProfile(X_dim=1,
+    pe = da.BivariatePlasmaProfile(X_dim=1,
                                                 X_units=[''],
                                                 y_units='kPa',
                                                 X_labels=['$sqrtpsinorm$'],
                                                 y_label=r'$p_e$')
     
-    p_pe_y = p_pe_y*1e20*1.602e-19 # 10^{20}*keV --> kPa
-    p_pe_err_y = p_pe_err_y*1e20*1.602e-19 # 10^{20}*keV --> kPa
+    pe_y = pe_y*1e20*1.602e-19 # 10^{20}*keV --> kPa
+    pe_err_y = pe_err_y*1e20*1.602e-19 # 10^{20}*keV --> kPa
 
-    p_pe.add_data(p_pe_X, p_pe_y, err_y=p_pe_err_y)
+    pe.add_data(pe_X, pe_y, err_y=pe_err_y)
 
-    return p_pe
+    return pe 
 
 
 def build_profile_prefilter(X, y, y_err, kp):
