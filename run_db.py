@@ -21,6 +21,7 @@ import time as _time
 data_loc = '/home/millerma/thomson_separatrix/shotlists/'
 db_filestem = 'test_db.txt'
 regime = 'any'
+each_thomson = True
 
 ##########################################################
 
@@ -63,7 +64,7 @@ def main_db():
     win = 0
     for regime, table in tables.items(): 
         
-        tables[regime] = tables[regime]
+        # sort the shot list if not already - probably not strictly necessary
         sortshot = np.argsort(tables[regime][:,0]) # sort it
         tables[regime] = tables[regime][sortshot]
     
@@ -72,16 +73,44 @@ def main_db():
 
         for ii in compute_range:
             shot = int(tables[regime][ii,0])
-            tmin = round(tables[regime][ii,1],3)
-            tmax = round(tables[regime][ii,2],3)
 
-            if shot not in windows[regime]:
-                windows[regime][shot] = {}
-                n = 0
+            if each_thomson:
 
-            windows[regime][shot][n] = [tmin, tmax]
-            n += 1
-            win += 1
+                # get thomson time points
+                # import MDSplus
+                # electrons = MDSplus.Tree('electrons', shot)
+
+                thomson_times = np.linspace(0,2,100)#electrons.getNode('\\electrons::top.yag_edgets.results:ne').dim_of(0).data()
+
+                thomson_start = round(tables[regime][ii,1],3)
+                thomson_end = round(tables[regime][ii,2],3)
+                mask_shot = (thomson_times >= thomson_start) & (thomson_times <= thomson_end)
+
+                for tt in thomson_times[mask_shot]:
+
+                    tmin = round(tt - 1e-4, 4) # just to be safe
+                    tmax = round(tt + 1e-4, 4) # just to be safe
+
+                    if shot not in windows[regime]:
+                        windows[regime][shot] = {}
+                        n = 0
+
+                    windows[regime][shot][n] = [tmin, tmax]
+                    n += 1
+                    win += 1
+
+            else:
+
+                tmin = round(tables[regime][ii,1],3)
+                tmax = round(tables[regime][ii,2],3)
+
+                if shot not in windows[regime]:
+                    windows[regime][shot] = {}
+                    n = 0
+
+                windows[regime][shot][n] = [tmin, tmax]
+                n += 1
+                win += 1
 
     print('Number of windows in database:',win)
 
@@ -89,7 +118,6 @@ def main_db():
     for var in var_list + mds_vars:
         res[var] = []
 
-    num_windows = win
     db_exists = False
     try:
         with open(db_filestem+'.pkl', 'wb') as f:
@@ -169,8 +197,9 @@ def run_db(res, windows, plot_kin=False, user_check=False):
                         ax.set_xlabel('r/a')
                         ax.set_ylabel('T_e')
                     
-                    #input("Press Enter to continue...")
-                    #embed()
+                    if user_check:
+                        input("Press Enter to continue...")
+                        embed()
 
                     # exclude shots that don't have enough ne,Te data points near LCFS over the chosen interval
                     maskped = np.logical_and(p_ne.X[:,0]>0.90, p_ne.X[:,0]<1.01)
@@ -178,18 +207,6 @@ def run_db(res, windows, plot_kin=False, user_check=False):
 
                     print('Data points in pedestal: {}'.format(np.sum(maskped)))
                     print('Data points in SOL: {}'.format(np.sum(maskSOL)))
-
-                    #if len(p_Te.X[maskLCFS])<6:
-                    #    raise ValueError(f'Not enough data kinetic data in the pedestal!')
-                    
-                    # check if there exist any data point in the SOL
-                    #if np.all(p_ne.X[:,0]<0.99):
-                    #    print(f'No SOL ne data points inside of r/a=0.99 in shot {shot}!')
-                    #    #raise ValueError(f'No SOL ne data points inside of r/a=0.99 in shot {shot}!')
-                    #if np.all(p_Te.X[:,0]<0.99):
-                    #    print(f'No SOL Te data points inside of r/a=0.99 in shot {shot}!')
-
-
                     
                     print(f'All good for shot {shot}, tmin={tmin}, tmax={tmax}!')
                 except Exception as e:

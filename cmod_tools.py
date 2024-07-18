@@ -31,7 +31,7 @@ import data_access as da
 #~# This is the function that grabs the data and fits it - probably too big of a function and should break it down into chunks
 
 def get_cmod_kin_profs(shot, tmin, tmax, pre_shift_TS=False, force_to_zero=False, frac_err=True, num_mc=100,
-                       osborne_fit=False, apply_final_sep_stretch=False, core_ts_mult=False, edge_ts_mult=False, core_ts_factor=1, edge_ts_factor=1):
+                       fit_type='osborne', apply_final_sep_stretch=False, core_ts_mult=False, edge_ts_mult=False, core_ts_factor=1, edge_ts_factor=1):
     '''Function to load and fit modified-tanh functions to C-Mod ne and Te.
 
     This function is designed to be robust for operation within the construction of
@@ -321,8 +321,31 @@ def get_cmod_kin_profs(shot, tmin, tmax, pre_shift_TS=False, force_to_zero=False
     mask_Te = (p_Te.X[idxs_Te,0] > rhop_min_fit) & (p_Te.X[idxs_Te,0] < rhop_max_fit)
 
     # Fit the profiles!  
-    ne, ne_popt, ne_perr, ne_chisqr = fp.best_osbourne(p_ne.X[idxs_ne,0][mask_ne], p_ne.y[idxs_ne][mask_ne], vals_unc=p_ne.err_y[idxs_ne][mask_ne], x_out=rhop_kp, maxfev=maxfev, reg=reg, edge_chi=edge_chi, ped_width=ped_width, ne=True)
-    Te, Te_popt, Te_perr, Te_chisqr = fp.best_osbourne(p_Te.X[idxs_Te,0][mask_Te], p_Te.y[idxs_Te][mask_Te], vals_unc=p_Te.err_y[idxs_Te][mask_Te], x_out=rhop_kp, maxfev=maxfev, reg=reg, edge_chi=edge_chi, ped_width=ped_width, ne=False)
+    if fit_type == 'osborne':
+
+        _out_ne = fp.best_osborne(p_ne.X[idxs_ne,0][mask_ne], p_ne.y[idxs_ne][mask_ne], vals_unc=p_ne.err_y[idxs_ne][mask_ne], x_out=rhop_kp, maxfev=maxfev, reg=reg, edge_chi=edge_chi, ped_width=ped_width, ne=True)
+        _out_Te = fp.best_osborne(p_Te.X[idxs_Te,0][mask_Te], p_Te.y[idxs_Te][mask_Te], vals_unc=p_Te.err_y[idxs_Te][mask_Te], x_out=rhop_kp, maxfev=maxfev, reg=reg, edge_chi=edge_chi, ped_width=ped_width, ne=False)
+
+    elif fit_type == 'omfit_mtanh':
+
+        _out_ne = fp.super_fit(p_ne.X[idxs_ne,0][mask_ne], p_ne.y[idxs_ne][mask_ne], vals_unc=p_ne.err_y[idxs_ne][mask_ne], x_out=rhop_kp, edge_focus=False, bounds=None, plot=False)
+        _out_Te = fp.super_fit(p_Te.X[idxs_Te,0][mask_Te], p_Te.y[idxs_Te][mask_Te], vals_unc=p_Te.err_y[idxs_Te][mask_Te], x_out=rhop_kp, edge_focus=False, bounds=None, plot=False)
+
+    elif fit_type == 'polynomial':
+
+        _out_ne = fp.best_polyfit(p_ne.X[idxs_ne,0][mask_ne], p_ne.y[idxs_ne][mask_ne], vals_unc=p_ne.err_y[idxs_ne][mask_ne], x_out=rhop_kp, log=False, use_edge_chisqr=False, deg_list=[2,3,4])
+        _out_Te = fp.best_polyfit(p_Te.X[idxs_Te,0][mask_Te], p_Te.y[idxs_Te][mask_Te], vals_unc=p_Te.err_y[idxs_Te][mask_Te], x_out=rhop_kp, log=False, use_edge_chisqr=False, deg_list=[2,3,4])
+
+    elif fit_type == 'exp_polynomial':
+
+        _out_ne = fp.best_polyfit(p_ne.X[idxs_ne,0][mask_ne], p_ne.y[idxs_ne][mask_ne], vals_unc=p_ne.err_y[idxs_ne][mask_ne], x_out=rhop_kp, log=True, use_edge_chisqr=False, deg_list=[2,3,4])
+        _out_Te = fp.best_polyfit(p_Te.X[idxs_Te,0][mask_Te], p_Te.y[idxs_Te][mask_Te], vals_unc=p_Te.err_y[idxs_Te][mask_Te], x_out=rhop_kp, log=True, use_edge_chisqr=False, deg_list=[2,3,4])
+
+    else:
+        raise ValueError('Requested fit type not yet implemented!')
+
+    ne, ne_popt, ne_perr, ne_chisqr = _out_ne
+    Te, Te_popt, Te_perr, Te_chisqr = _out_Te
 
     # Apply filter depending on initial fit - in short, excludes points far from the fit
     p_ne, p_Te = postfit_filter(p_ne, p_Te, ne, Te, rhop_kp)
@@ -350,47 +373,65 @@ def get_cmod_kin_profs(shot, tmin, tmax, pre_shift_TS=False, force_to_zero=False
     mask_Te = (p_Te.X[idxs_Te,0] > rhop_min_fit) & (p_Te.X[idxs_Te,0] < rhop_max_fit)
     mask_pe = (p_pe.X[idxs_pe,0] > rhop_min_fit) & (p_pe.X[idxs_pe,0] < rhop_max_fit)
 
-
-    '''    
-    # Fit again
-    ne, ne_popt, ne_perr, ne_chisqr = fp.best_osbourne(p_ne.X[idxs_ne,0][mask_ne], p_ne.y[idxs_ne][mask_ne], vals_unc=p_ne.err_y[idxs_ne][mask_ne], x_out=rhop_kp, maxfev=maxfev, reg=reg, edge_chi=edge_chi, ped_width=ped_width, ne=True)
-    Te, Te_popt, Te_perr, Te_chisqr = fp.best_osbourne(p_Te.X[idxs_Te,0][mask_Te], p_Te.y[idxs_Te][mask_Te], vals_unc=p_Te.err_y[idxs_Te][mask_Te], x_out=rhop_kp, maxfev=maxfev, reg=reg, edge_chi=edge_chi, ped_width=ped_width, ne=False)
-    '''
-
     # now fit!
-    ne, ne_popt, ne_perr, ne_chisqr = fp.best_osbourne(p_ne.X[idxs_ne,0][mask_ne], p_ne.y[idxs_ne][mask_ne], vals_unc=p_ne.err_y[idxs_ne][mask_ne], x_out=rhop_kp, maxfev=maxfev, reg=reg, edge_chi=edge_chi, ped_width=ped_width, ne=True)
-    Te, Te_popt, Te_perr, Te_chisqr = fp.best_osbourne(p_Te.X[idxs_Te,0][mask_Te], p_Te.y[idxs_Te][mask_Te], vals_unc=p_Te.err_y[idxs_Te][mask_Te], x_out=rhop_kp, maxfev=maxfev, reg=reg, edge_chi=edge_chi, ped_width=ped_width, ne=False)
-    pe, pe_popt, pe_perr, pe_chisqr = fp.best_osbourne(p_pe.X[idxs_pe,0][mask_pe], p_pe.y[idxs_pe][mask_pe], vals_unc=p_pe.err_y[idxs_pe][mask_pe], x_out=rhop_kp, maxfev=maxfev, reg=reg, edge_chi=edge_chi, ped_width=ped_width, ne=False)
+    if fit_type == 'osborne':
+        _out_ne = fp.best_osborne(p_ne.X[idxs_ne,0][mask_ne], p_ne.y[idxs_ne][mask_ne], vals_unc=p_ne.err_y[idxs_ne][mask_ne], x_out=rhop_kp, maxfev=maxfev, reg=reg, edge_chi=edge_chi, ped_width=ped_width, ne=True)
+        _out_Te = fp.best_osborne(p_Te.X[idxs_Te,0][mask_Te], p_Te.y[idxs_Te][mask_Te], vals_unc=p_Te.err_y[idxs_Te][mask_Te], x_out=rhop_kp, maxfev=maxfev, reg=reg, edge_chi=edge_chi, ped_width=ped_width, ne=False)
+        _out_pe = fp.best_osborne(p_pe.X[idxs_pe,0][mask_pe], p_pe.y[idxs_pe][mask_pe], vals_unc=p_pe.err_y[idxs_pe][mask_pe], x_out=rhop_kp, maxfev=maxfev, reg=reg, edge_chi=edge_chi, ped_width=ped_width, ne=False)
+            
+        # also fit with a different reg and see which has smaller chisqr
+        _out_ne2 = fp.best_osborne(p_ne.X[idxs_ne,0][mask_ne], p_ne.y[idxs_ne][mask_ne], vals_unc=p_ne.err_y[idxs_ne][mask_ne], x_out=rhop_kp, maxfev=maxfev, reg=reg2, edge_chi=edge_chi, ped_width=ped_width, ne=True)
+        _out_Te2 = fp.best_osborne(p_Te.X[idxs_Te,0][mask_Te], p_Te.y[idxs_Te][mask_Te], vals_unc=p_Te.err_y[idxs_Te][mask_Te], x_out=rhop_kp, maxfev=maxfev, reg=reg2, edge_chi=edge_chi, ped_width=ped_width, ne=False)
+        _out_pe2 = fp.best_osborne(p_pe.X[idxs_pe,0][mask_pe], p_pe.y[idxs_pe][mask_pe], vals_unc=p_pe.err_y[idxs_pe][mask_pe], x_out=rhop_kp, maxfev=maxfev, reg=reg2, edge_chi=edge_chi, ped_width=ped_width, ne=False)
+
+        if (ne_chisqr2 > ne_chisqr):
+            nereg = reg
+            print('Using ne reg option 1')
+        else:
+            _out_ne = _out_ne2
+            nereg = reg2
+            print('Using ne reg option 2')
+
+        if (Te_chisqr2 > Te_chisqr):
+            Tereg = reg
+            print('Using Te reg option 1')
+        else:
+            _out_Te = _out_Te2
+            Tereg = reg2
+            print('Using Te reg option 2')
+
+        if (pe_chisqr2 > pe_chisqr):
+            pereg = reg
+            print('Using pe reg option 1')
+        else:
+            _out_pe = _out_pe2
+            pereg = reg2
+            print('Using pe reg option 2')
+
+    elif fit_type == 'omfit_mtanh':
+
+        _out_ne = fp.super_fit(p_ne.X[idxs_ne,0][mask_ne], p_ne.y[idxs_ne][mask_ne], vals_unc=p_ne.err_y[idxs_ne][mask_ne], x_out=rhop_kp, edge_focus=False, bounds=None, plot=False)
+        _out_Te = fp.super_fit(p_Te.X[idxs_Te,0][mask_Te], p_Te.y[idxs_Te][mask_Te], vals_unc=p_Te.err_y[idxs_Te][mask_Te], x_out=rhop_kp, edge_focus=False, bounds=None, plot=False)
+        _out_pe = fp.super_fit(p_pe.X[idxs_pe,0][mask_Te], p_pe.y[idxs_pe][mask_Te], vals_unc=p_pe.err_y[idxs_pe][mask_pe], x_out=rhop_kp, edge_focus=False, bounds=None, plot=False)
+
+    elif fit_type == 'polynomial':
         
-    # also fit with a different reg and see which has smaller chisqr
-    ne2, ne_popt2, ne_perr2, ne_chisqr2 = fp.best_osbourne(p_ne.X[idxs_ne,0][mask_ne], p_ne.y[idxs_ne][mask_ne], vals_unc=p_ne.err_y[idxs_ne][mask_ne], x_out=rhop_kp, maxfev=maxfev, reg=reg2, edge_chi=edge_chi, ped_width=ped_width, ne=True)
-    Te2, Te_popt2, Te_perr2, Te_chisqr2 = fp.best_osbourne(p_Te.X[idxs_Te,0][mask_Te], p_Te.y[idxs_Te][mask_Te], vals_unc=p_Te.err_y[idxs_Te][mask_Te], x_out=rhop_kp, maxfev=maxfev, reg=reg2, edge_chi=edge_chi, ped_width=ped_width, ne=False)
-    pe2, pe_popt2, pe_perr2, pe_chisqr2 = fp.best_osbourne(p_pe.X[idxs_pe,0][mask_pe], p_pe.y[idxs_pe][mask_pe], vals_unc=p_pe.err_y[idxs_pe][mask_pe], x_out=rhop_kp, maxfev=maxfev, reg=reg2, edge_chi=edge_chi, ped_width=ped_width, ne=False)
+        _out_ne = fp.best_polyfit(p_ne.X[idxs_ne,0][mask_ne], p_ne.y[idxs_ne][mask_ne], vals_unc=p_ne.err_y[idxs_ne][mask_ne], x_out=rhop_kp, log=False, use_edge_chisqr=False, deg_list=[2,3,4])
+        _out_Te = fp.best_polyfit(p_Te.X[idxs_Te,0][mask_Te], p_ne.y[idxs_Te][mask_Te], vals_unc=p_Te.err_y[idxs_Te][mask_Te], x_out=rhop_kp, log=False, use_edge_chisqr=False, deg_list=[2,3,4])
+        _out_pe = fp.best_polyfit(p_pe.X[idxs_pe,0][mask_pe], p_pe.y[idxs_pe][mask_pe], vals_unc=p_pe.err_y[idxs_pe][mask_pe], x_out=rhop_kp, log=False, use_edge_chisqr=False, deg_list=[2,3,4])
 
-    if (ne_chisqr2 > ne_chisqr):
-        nereg = reg
-        print('Using ne reg option 1')
+    elif fit_type == 'exp_polynomial':
+
+        _out_ne = fp.best_polyfit(p_ne.X[idxs_ne,0][mask_ne], p_ne.y[idxs_ne][mask_ne], vals_unc=p_ne.err_y[idxs_ne][mask_ne], x_out=rhop_kp, log=True, use_edge_chisqr=False, deg_list=[2,3,4])
+        _out_Te = fp.best_polyfit(p_Te.X[idxs_Te,0][mask_Te], p_ne.y[idxs_Te][mask_Te], vals_unc=p_Te.err_y[idxs_Te][mask_Te], x_out=rhop_kp, log=True, use_edge_chisqr=False, deg_list=[2,3,4])
+        _out_pe = fp.best_polyfit(p_pe.X[idxs_pe,0][mask_pe], p_pe.y[idxs_pe][mask_pe], vals_unc=p_pe.err_y[idxs_pe][mask_pe], x_out=rhop_kp, log=True, use_edge_chisqr=False, deg_list=[2,3,4])
+
     else:
-        ne, ne_popt, ne_perr, ne_chisqr = ne2, ne_popt2, ne_perr2, ne_chisqr2
-        nereg = reg2
-        print('Using ne reg option 2')
+        raise ValueError('Requested fit type not yet implemented!')
 
-    if (Te_chisqr2 > Te_chisqr):
-        Tereg = reg
-        print('Using Te reg option 1')
-    else:
-        Te, Te_popt, Te_perr, Te_chisqr = Te2, Te_popt2, Te_perr2, Te_chisqr2
-        Tereg = reg2
-        print('Using Te reg option 2')
-
-    if (pe_chisqr2 > pe_chisqr):
-        pereg = reg
-        print('Using pe reg option 1')
-    else:
-        pe, pe_popt, pe_perr, pe_chisqr = pe2, pe_popt2, pe_perr2, pe_chisqr2
-        pereg = reg2
-        print('Using pe reg option 2')
-
+    ne, ne_popt, ne_perr, ne_chisqr = _out_ne
+    Te, Te_popt, Te_perr, Te_chisqr = _out_Te
+    pe, pe_popt, pe_perr, pe_chisqr = _out_pe
 
     # Shift profiles if shift_profiles is set to True
     if shift_profiles:
@@ -480,10 +521,33 @@ def get_cmod_kin_profs(shot, tmin, tmax, pre_shift_TS=False, force_to_zero=False
 
         # Now, refit the mean and save coefficients of mean - in case one is interested in a "mean fit"
     
-        ne_mean_fit, ne_mean_popt, ne_mean_perr, ne_mean_chisqr = fp.best_osbourne(rhop_kp, f_ne.fit_mean, vals_unc=f_ne.fit_std, x_out=f_ne.x, maxfev=maxfev, reg=nereg, edge_chi=edge_chi, ped_width=ped_width, ne=True)
-        Te_mean_fit, Te_mean_popt, Te_mean_perr, Te_mean_chisqr = fp.best_osbourne(rhop_kp, f_Te.fit_mean, vals_unc=f_Te.fit_std, x_out=f_Te.x, maxfev=maxfev, reg=Tereg, edge_chi=edge_chi, ped_width=ped_width, ne=False)
-        pe_mean_fit, pe_mean_popt, pe_mean_perr, pe_mean_chisqr = fp.best_osbourne(rhop_kp, f_pe.fit_mean, vals_unc=f_pe.fit_std, x_out=f_pe.x, maxfev=maxfev, reg=pereg, edge_chi=edge_chi, ped_width=ped_width, ne=False)
+        if fit_type == 'osborne':
+            _out_ne = fp.best_osborne(rhop_kp, f_ne.fit_mean, vals_unc=f_ne.fit_std, x_out=f_ne.x, maxfev=maxfev, reg=nereg, edge_chi=edge_chi, ped_width=ped_width, ne=True)
+            _out_Te = fp.best_osborne(rhop_kp, f_Te.fit_mean, vals_unc=f_Te.fit_std, x_out=f_Te.x, maxfev=maxfev, reg=Tereg, edge_chi=edge_chi, ped_width=ped_width, ne=False)
+            _out_pe = fp.best_osborne(rhop_kp, f_pe.fit_mean, vals_unc=f_pe.fit_std, x_out=f_pe.x, maxfev=maxfev, reg=pereg, edge_chi=edge_chi, ped_width=ped_width, ne=False)
     
+        elif fit_type == 'omfit_mtanh':
+
+            _out_ne = fp.super_fit(rhop_kp, f_ne.fit_mean, vals_unc=f_ne.fit_std, x_out=f_ne.x, edge_focus=False, bounds=None, plot=False)
+            _out_Te = fp.super_fit(rhop_kp, f_Te.fit_mean, vals_unc=f_Te.fit_std, x_out=f_Te.x, edge_focus=False, bounds=None, plot=False)
+            _out_pe = fp.super_fit(rhop_kp, f_pe.fit_mean, vals_unc=f_pe.fit_std, x_out=f_pe.x, edge_focus=False, bounds=None, plot=False)
+
+        elif fit_type == 'polynomial':
+
+            _out_ne = fp.best_polyfit(rhop_kp, f_ne.fit_mean, vals_unc=f_ne.fit_std, x_out=f_ne.x, log=False, use_edge_chisqr=False, deg_list=[2,3,4])
+            _out_Te = fp.best_polyfit(rhop_kp, f_Te.fit_mean, vals_unc=f_Te.fit_std, x_out=f_Te.x, log=False, use_edge_chisqr=False, deg_list=[2,3,4])
+            _out_pe = fp.best_polyfit(rhop_kp, f_pe.fit_mean, vals_unc=f_pe.fit_std, x_out=f_pe.x, log=False, use_edge_chisqr=False, deg_list=[2,3,4])
+
+        elif fit_type == 'exp_polynomial':
+
+            _out_ne = fp.best_polyfit(rhop_kp, f_ne.fit_mean, vals_unc=f_ne.fit_std, x_out=f_ne.x, log=True, use_edge_chisqr=False, deg_list=[2,3,4])
+            _out_Te = fp.best_polyfit(rhop_kp, f_Te.fit_mean, vals_unc=f_Te.fit_std, x_out=f_Te.x, log=True, use_edge_chisqr=False, deg_list=[2,3,4])
+            _out_pe = fp.best_polyfit(rhop_kp, f_pe.fit_mean, vals_unc=f_pe.fit_std, x_out=f_pe.x, log=True, use_edge_chisqr=False, deg_list=[2,3,4])
+
+        else:
+            raise ValueError('Requested fit type not yet implemented!')
+
+
         if plot_fit:
 
             fig, ax = plt.subplots(2, sharex=True)
@@ -1123,8 +1187,16 @@ def get_fit_gradient(y, c, rhop, fit_type, eq, tmin, tmax, grad_type='analytic',
 
     if grad_type == 'analytic':
 
-        if fit_type == 'osborne': grad = fp.Osbourne_Tanh_gradient(x, c, reg=reg)
-        if fit_type == 'superfit': grad = fp.mtanh_profile_gradient(x, edge=c[0], ped=c[1], core=c[2], expin=c[3], expout=c[4], widthp=c[5], xphalf=c[6])
+        if fit_type == 'osborne': 
+            grad = fp.Osborne_Tanh_gradient(x, c, reg=reg)
+        elif fit_type == 'omfit_mtanh': 
+            grad = fp.mtanh_profile_gradient(x, edge=c[0], ped=c[1], core=c[2], expin=c[3], expout=c[4], widthp=c[5], xphalf=c[6])
+        elif fit_type == 'polynomial':
+            grad = fp.polyfit_gradient(x, c, log=False)
+        elif fit_type == 'exp_polynomial':
+            grad = fp.polyfit_gradient(x, c, log=True)
+        else:
+            raise ValueError('Requested fit type not yet implemented!')
 
     else:
         grad = np.gradient(y)
@@ -1203,7 +1275,20 @@ class kinetic_profile:
             new_pts = raw.y + np.random.normal(scale=raw.err_y)
     
             try:
-                _out = fp.best_osbourne(raw.X[:,0], new_pts, vals_unc=raw.err_y, x_out=self.x, maxfev=maxfev, reg=reg, ped_width=ped_width, ne=ne)
+                if fit_type == 'osborne':
+                    _out = fp.best_osborne(raw.X[:,0], new_pts, vals_unc=raw.err_y, x_out=self.x, maxfev=maxfev, reg=reg, ped_width=ped_width, ne=ne)
+
+                elif fit_type == 'omfit_mtanh':
+                    _out = fp.super_fit(raw.X[:,0], new_pts, vals_unc=raw.err_y, x_out=self.x, edge_focus=False, bounds=None, plot=False)
+
+                elif fit_type == 'polynomial':
+                    _out = fp.best_polyfit(raw.X[:,0], new_pts, vals_unc=raw.err_y, x_out=self.x, log=False, use_edge_chisqr=False, deg_list=[2,3,4])
+
+                elif fit_type == 'exp_polynomial':
+                    _out = fp.best_polyfit(raw.X[:,0], new_pts, vals_unc=raw.err_y, x_out=self.x, log=True, use_edge_chisqr=False, deg_list=[2,3,4])
+
+                else:
+                    raise ValueError('Requested fit type not yet implemented!')
 
                 fit_dist[ii], popt, perr, xsqr_dist[ii] = _out
                 grad_fit_dist[ii] = get_fit_gradient(fit_dist[ii], popt, self.x, 'osborne', self.eq, self.tmin, self.tmax, grad_type='analytic', wrt='R', reg=reg, plot=False)

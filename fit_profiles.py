@@ -135,7 +135,7 @@ def mtanh_profile_gradient(x_coord, edge=0.08, ped=0.4, core=2.5, expin=1.5, exp
 
 
 # PFS this is the function I use for the pedestal (includes core and SOL terms)
-def Osbourne_Tanh(x,C,reg=None,plot = False):
+def Osborne_Tanh(x,C,reg=None,plot = False):
     """
     adapted from Osborne via Hughes idl script
     tanh function with cubic or quartic inner and linear
@@ -174,7 +174,7 @@ def Osbourne_Tanh(x,C,reg=None,plot = False):
     return F
 
 
-def Osbourne_Tanh_gradient(x,C,reg=None,plot = False):
+def Osborne_Tanh_gradient(x,C,reg=None,plot = False):
     """
     adapted from Osborne via Hughes idl script
     tanh function with cubic or quartic inner and linear
@@ -250,10 +250,10 @@ def chi_square(x_coord, vals, unc, fit, fitParam, edge_chi=False):
 
 
 
-def best_osbourne(x_coord, vals, vals_unc=None, x_out=None,
+def best_osborne(x_coord, vals, vals_unc=None, x_out=None,
               guess=[], plot=False,maxfev=2000,bounds = None,reg=None,edge_chi=False, ped_width=None, ne=True):
 
-    """Runs super_fit_osbourne below with 3 different gueses
+    """Runs super_fit_osborne below with 3 different gueses
     runs user can specify None to all 3 guesses using guess = [guess1,guess2,guess3]
     where guess1 = c = [c1,c2,c3...]
     returns the best guess by X^2 value: fit data on x_out, fitParam, fitUnc (1 SD)
@@ -321,8 +321,7 @@ def best_osbourne(x_coord, vals, vals_unc=None, x_out=None,
     for i in range(len(guesses)):
 
         try:
-            cFit, cFitParam, cUnc = super_fit_osbourne(x_coord, vals, vals_unc=vals_unc, x_out=x_out,plot=plot,maxfev=maxfev,bounds = bounds,guess = guesses[i],reg=reg,ped_width=ped_width_list[i], ne=ne)
-            #cFit, cFitParam, cUnc = super_fit_osbourne(x_coord, vals, vals_unc=vals_unc, x_out=x_out,plot=plot,maxfev=maxfev,bounds = bounds,reg=reg)
+            cFit, cFitParam, cUnc = super_fit_osborne(x_coord, vals, vals_unc=vals_unc, x_out=x_out,plot=plot,maxfev=maxfev,bounds = bounds,guess = guesses[i], reg=reg, ped_width=ped_width_list[i], ne=ne)
             res_fit[i,:] = cFit
             popt[i,:] = cFitParam
             pcov[i,:] = cUnc
@@ -330,7 +329,7 @@ def best_osbourne(x_coord, vals, vals_unc=None, x_out=None,
             if len(cFit) == len(vals):
                 xsqr[i] = chi_square(x_coord,vals, vals_unc,cFit,cFitParam, edge_chi=edge_chi)
             else:
-                cFitXSQR  = Osbourne_Tanh(x_coord,cFitParam,reg=reg)
+                cFitXSQR  = Osborne_Tanh(x_coord,cFitParam,reg=reg)
                 xsqr[i] = chi_square(x_coord, vals, vals_unc, cFitXSQR, cFitParam, edge_chi=edge_chi)
         
         except Exception as e:
@@ -365,7 +364,7 @@ def best_osbourne(x_coord, vals, vals_unc=None, x_out=None,
 
 
 
-def super_fit_osbourne(x_coord, vals, vals_unc=None, x_out=None,
+def super_fit_osborne(x_coord, vals, vals_unc=None, x_out=None,
               guess=None, plot=False,maxfev=2000,bounds = None, reg=None, ped_width=None, ne=True):
     '''Fast and complete 1D full-profile fit.
     
@@ -413,7 +412,7 @@ def super_fit_osbourne(x_coord, vals, vals_unc=None, x_out=None,
     def func(x,c0,c1,c2,c3,c4,c5,c6,c7,c8):
         c = np.asarray([c0,c1,c2,c3,c4,c5,c6,c7,c8])
         #print('COEFS',c)
-        nval = Osbourne_Tanh(x,c,reg=reg)
+        nval = Osborne_Tanh(x,c,reg=reg)
         return nval
 
     # see parameters order in the function docstring
@@ -456,7 +455,7 @@ def super_fit_osbourne(x_coord, vals, vals_unc=None, x_out=None,
 
     if x_out is None:
         x_out = x_coord
-    res_fit = Osbourne_Tanh(x_out,popt,reg=reg)
+    res_fit = Osborne_Tanh(x_out,popt,reg=reg)
 
     # ensure positivity/minima
     res_fit[res_fit<np.nanmin(vals)] = np.nanmin(vals)
@@ -468,8 +467,8 @@ def super_fit_osbourne(x_coord, vals, vals_unc=None, x_out=None,
         else:
             plt.errorbar(x_coord, vals, vals_unc, fmt='.',c='r', label='raw')
         plt.plot(x_out, res_fit, 'b-', label='fit')
-        y1 = Osbourne_Tanh(x_out,popt+perr)
-        y2 = Osbourne_Tanh(x_out,popt-perr)
+        y1 = Osborne_Tanh(x_out,popt+perr)
+        y2 = Osborne_Tanh(x_out,popt-perr)
 
         plt.plot(x_out,y1,'b--')
         plt.plot(x_out,y2,'b--')
@@ -588,3 +587,51 @@ def super_fit(x_coord, vals, vals_unc=None, x_out=None, edge_focus=True,
         plt.legend()
 
     return res_fit, c, err, xsqr
+
+
+
+def best_polyfit(x_coord, vals, vals_unc=None, x_out=None, log=False, use_edge_chisqr=False, deg_list=[2,3,4]):
+
+    if isinstance(vals, (int,float)) or isinstance(x_coord, (int, float)):
+    raise ValueError('Input profile to super_fit is a scalar! This function requires 1D profiles.')
+
+    if log: 
+        vals = np.log(vals)
+        if vals_unc is not None:
+            vals_unc = vals_unc / vals
+
+    if x_out is None:
+        x_out = x_coord
+
+    # initialize placeholders for loop
+    xsqr = 1e30
+    c = []
+    err = []
+    res_fit = np.zeros_like(x_out)
+
+    for deg in deg_list:
+        if vals_unc is not None:
+            _popt = np.polyfit(x_coord, vals, deg=deg, w=1/vals_unc)
+        else:
+            _popt = np.polyfit(x_coord, vals, deg=deg)
+
+        # calculate chisqr and decide goodness of fit
+        _res_fit = np.polyval(_popt, x_out)
+        if log: _res_fit = np.exp(_res_fit)
+
+        _xsqr = chi_square(x_coord, vals, vals_unc, _res_fit, _popt, edge_chi=use_edge_chisqr)
+        _err = np.sqrt(np.diag(_popt)) 
+        
+        if _xsqr < xsqr: res_fit, c, err, xsqr = _res_fit, _popt, _err, _xsqr
+
+    return res_fit, c, err, xsqr
+
+
+def polyfit_gradient(x_coord, c, log=False):
+
+    po = np.poly1d(c)
+    dpo = np.polyder(po)
+    grad = dpo(x_coord)
+    if log: grad*=np.exp(po(x_coord))
+
+    return grad
