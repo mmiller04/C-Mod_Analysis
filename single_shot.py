@@ -111,9 +111,12 @@ def assemble_into_dict(shot, tmin, tmax,
 
     # set appropriate minima
     Te_min=3.0/1e3    # intended to be a better approximation overall than 3eV
+    ne_min=1e12/1e14
+    pe_min=1.602/1e3
+
     Te[Te<Te_min] = Te_min  
-    ne[ne<1e12] = 1e12/1e14
-    pe[pe<1.602] = 1.602/1e3
+    ne[ne<ne_min] = ne_min
+    pe[pe<pe_min] = pe_min
 
     # output results in a dictionary, to allow us to add/subtract keys in the future
     res = {'fit':{}, 'raw':{}}
@@ -386,9 +389,9 @@ def plot_check_fits(res,  Te_min=10.):
     kinmin_val = np.min(res['fit']['rhop'])
     kinmax_val = np.max(res['fit']['rhop'])
 
-    nemin_val = np.minimum(np.nanmin(res['raw']['ne']), np.nanmin(res['fit']['ne'])) - 3e13
+    nemin_val = np.minimum(np.nanmin(res['raw']['ne']), np.nanmin(res['fit']['ne'])) - 0.1
     nemax_val = np.nanmax(res['fit']['ne']) + 1
-    Temin_val = np.minimum(np.nanmin(res['raw']['Te']), np.nanmin(res['fit']['Te'])) - 50   
+    Temin_val = np.minimum(np.nanmin(res['raw']['Te']), np.nanmin(res['fit']['Te'])) - 50/1e3   
     Temax_val = np.nanmax(res['fit']['Te']) + 200/1e3
 
     ax[0].set_xlim([kinmin_val - 0.1, kinmax_val])
@@ -429,9 +432,9 @@ if __name__=='__main__':
     tmax = 1.2
 
     # high H98 L-mode
-    shot = 1070803016
-    tmin = 0.7
-    tmax = 1.2
+    #shot = 1070803016
+    #tmin = 0.7
+    #tmax = 1.2
 
     # high H98 L-mode
     #shot = 1030530016
@@ -439,15 +442,14 @@ if __name__=='__main__':
     #tmax = 0.9
 
     # mid H98, high ne L-mode
-    shot = 1070816013
-    tmin = 1.0
-    tmax = 1.1
+    #shot = 1070816013
+    #tmin = 1.0
+    #tmax = 1.1
 
     # test L-mode
-    shot = 1070829009
-    tmin = 1.0
-    tmax = 1.05
-        
+    shot = 1070830006
+    tmin = 0.85
+    tmax = 0.9
 
     ############
     ne_min = 1e12 # cm^{-3}
@@ -456,13 +458,14 @@ if __name__=='__main__':
     force_to_zero = True # helps constrain fits if there's not good SOL coverage
     num_mc = 5 # to estimate fitting error - can probably speed this up jamie's method of repassing
                # in fit parameters into new iteration and vectorizing
+    fit_type = 'omfit_mtanh' #osborne, omfit_mtanh, polynomial, exp_polynomial
  
     import time
     start_time = time.time()
 
     # this is the call to grab TS data and fit it
     kp_out = get_cmod_kin_profs(shot, tmin, tmax,
-                                           apply_final_sep_stretch=True, force_to_zero=force_to_zero,
+                                           apply_final_sep_stretch=True, force_to_zero=force_to_zero, fit_type=fit_type,
                                            frac_err=False, num_mc=num_mc, core_ts_mult=False, edge_ts_mult=False) 
     f_ne, f_Te, f_pe, p_ne, p_Te, p_pe = kp_out
 
@@ -475,7 +478,6 @@ if __name__=='__main__':
     res = assemble_into_dict(shot, tmin, tmax, 
                                 f_ne, f_Te, f_pe, 
                                 p_ne, p_Te, p_pe)
-
 
     ##### PLOT RESULTS #####
     

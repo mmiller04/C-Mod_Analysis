@@ -79,16 +79,13 @@ def Teu_2pt_model(shot,tmin,tmax, lambdaq_opt=1, rhop_vec=None, ne=None, Te=None
     BTaxis = np.abs(da.get_CMOD_var(var='Bt',shot=shot, tmin=tmin, tmax=tmax, plot=False))
     betat = da.get_CMOD_var(var='betat',shot=shot, tmin=tmin, tmax=tmax, plot=False)
     p_Pa_vol_avg = (betat/100)*BTaxis**2.0/(2.0*4.0*np.pi*1e-7)   # formula used by D.Brunner
-
-
     # B fields at the LFS LCFS midplane - need equilibrium information
     try: # EFIT20 only exists for shots from certain years
         e = da.CModEFITTree(int(shot), tree='EFIT20', length_unit='m')
     except:
         e = da.CModEFITTree(int(shot), tree='analysis', length_unit='m')
     Rlcfs = e.rho2rho('psinorm', 'Rmid', 1, time)
-    gfilename = '/home/millerma/lya/gfiles/' + f'g{shot}.{str(int(time*1e3)).zfill(5)}'
-
+    
     Bt = np.abs(e.rz2BT(Rlcfs, 0, time)) 
     Bp = np.abs(e.rz2BZ(Rlcfs, 0, time)) 
 

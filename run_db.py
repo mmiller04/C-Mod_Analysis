@@ -19,7 +19,7 @@ import time as _time
 
 # set variables to create database in your own directory 
 data_loc = '/home/millerma/thomson_separatrix/shotlists/'
-db_filestem = 'test_db.txt'
+db_filestem = 'test_db'
 regime = 'any'
 each_thomson = True
 
@@ -77,10 +77,10 @@ def main_db():
             if each_thomson:
 
                 # get thomson time points
-                # import MDSplus
-                # electrons = MDSplus.Tree('electrons', shot)
+                import MDSplus
+                electrons = MDSplus.Tree('electrons', shot)
 
-                thomson_times = np.linspace(0,2,100)#electrons.getNode('\\electrons::top.yag_edgets.results:ne').dim_of(0).data()
+                thomson_times = electrons.getNode('\\electrons::top.yag_edgets.results:ne').dim_of(0).data()
 
                 thomson_start = round(tables[regime][ii,1],3)
                 thomson_end = round(tables[regime][ii,2],3)

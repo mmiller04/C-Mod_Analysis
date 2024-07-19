@@ -1410,7 +1410,7 @@ def get_CMOD_var(var,shot, tmin=None, tmax=None, plot=False, return_time=False):
 
     if var not in ['P_oh','dWdt', 'P_rad_main']: 
         data = node.data()
-        t = node.dim_of(0)
+        t = node.dim_of(0).data()
 
         if var=='p_E_BOT_MKS' or var=='p_B_BOT_MKS' or var=='p_F_CRYO_MKS':  # anomalies in data storage
             if data is not None:
@@ -1468,7 +1468,10 @@ def get_CMOD_var(var,shot, tmin=None, tmax=None, plot=False, return_time=False):
     if tmin is not None and tmax is not None and t is not None:
         tidx0 = np.argmin(np.abs(t - tmin))
         tidx1 = np.argmin(np.abs(t - tmax))
-        return np.mean(data[tidx0:tidx1])
+        if tidx0 == tidx1:
+            return data[tidx0]
+        else:
+            return np.mean(data[tidx0:tidx1])
     else:
         if return_time:
             return t, data

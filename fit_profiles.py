@@ -593,7 +593,7 @@ def super_fit(x_coord, vals, vals_unc=None, x_out=None, edge_focus=True,
 def best_polyfit(x_coord, vals, vals_unc=None, x_out=None, log=False, use_edge_chisqr=False, deg_list=[2,3,4]):
 
     if isinstance(vals, (int,float)) or isinstance(x_coord, (int, float)):
-    raise ValueError('Input profile to super_fit is a scalar! This function requires 1D profiles.')
+        raise ValueError('Input profile to super_fit is a scalar! This function requires 1D profiles.')
 
     if log: 
         vals = np.log(vals)
@@ -617,9 +617,10 @@ def best_polyfit(x_coord, vals, vals_unc=None, x_out=None, log=False, use_edge_c
 
         # calculate chisqr and decide goodness of fit
         _res_fit = np.polyval(_popt, x_out)
+        _res_fit_xsqr = np.polyval(_popt, x_coord)
         if log: _res_fit = np.exp(_res_fit)
 
-        _xsqr = chi_square(x_coord, vals, vals_unc, _res_fit, _popt, edge_chi=use_edge_chisqr)
+        _xsqr = chi_square(x_coord, vals, vals_unc, _res_fit_xsqr, _popt, edge_chi=use_edge_chisqr)
         _err = np.sqrt(np.diag(_popt)) 
         
         if _xsqr < xsqr: res_fit, c, err, xsqr = _res_fit, _popt, _err, _xsqr

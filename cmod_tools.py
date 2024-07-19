@@ -243,7 +243,6 @@ def get_cmod_kin_profs(shot, tmin, tmax, pre_shift_TS=False, force_to_zero=False
     Te_Y_nofilters = p_Te.y
     Te_unc_Y_nofilters = p_Te.err_y
 
-
     ##########################################
 
     ### choose how to deal with separatrix ###
@@ -251,7 +250,7 @@ def get_cmod_kin_profs(shot, tmin, tmax, pre_shift_TS=False, force_to_zero=False
     ##########################################
 
 
-    shift_profiles = True # this will not shift profiles at all
+    shift_profiles = False # this will not shift profiles at all
 
     lambdaq_type = 'scaling' # profile
     sub_type = 'brunner' #'eich' for 'scaling'; 'log_linear', 'log_quadaratic', 'tanh', etc. for 'profile'
@@ -292,7 +291,7 @@ def get_cmod_kin_profs(shot, tmin, tmax, pre_shift_TS=False, force_to_zero=False
     reg = [8] # these will determine which coefficients in the fit are set to zero to prevent overfitting
     reg2 = [7,8] # this should help cases that have shallower gradients
     edge_chi = True # this will use chisqr from the edge instead of the whole profile to evaluate goodness of fit
-    plot_fit = False # this will plot the best mtanh fit
+    plot_fit = True # this will plot the best mtanh fit
 
     rhop_min_fit = 0 # if only want to fit to some portion of the data (i.e. only the pedestal for example)
     rhop_max_fit = 1.2 # the max value
@@ -338,8 +337,8 @@ def get_cmod_kin_profs(shot, tmin, tmax, pre_shift_TS=False, force_to_zero=False
 
     elif fit_type == 'exp_polynomial':
 
-        _out_ne = fp.best_polyfit(p_ne.X[idxs_ne,0][mask_ne], p_ne.y[idxs_ne][mask_ne], vals_unc=p_ne.err_y[idxs_ne][mask_ne], x_out=rhop_kp, log=True, use_edge_chisqr=False, deg_list=[2,3,4])
-        _out_Te = fp.best_polyfit(p_Te.X[idxs_Te,0][mask_Te], p_Te.y[idxs_Te][mask_Te], vals_unc=p_Te.err_y[idxs_Te][mask_Te], x_out=rhop_kp, log=True, use_edge_chisqr=False, deg_list=[2,3,4])
+        _out_ne = fp.best_polyfit(p_ne.X[idxs_ne,0][mask_ne], p_ne.y[idxs_ne][mask_ne], vals_unc=p_ne.err_y[idxs_ne][mask_ne], x_out=rhop_kp, log=True, use_edge_chisqr=True, deg_list=[2,3,4])
+        _out_Te = fp.best_polyfit(p_Te.X[idxs_Te,0][mask_Te], p_Te.y[idxs_Te][mask_Te], vals_unc=p_Te.err_y[idxs_Te][mask_Te], x_out=rhop_kp, log=True, use_edge_chisqr=True, deg_list=[2,3,4])
 
     else:
         raise ValueError('Requested fit type not yet implemented!')
@@ -384,6 +383,14 @@ def get_cmod_kin_profs(shot, tmin, tmax, pre_shift_TS=False, force_to_zero=False
         _out_Te2 = fp.best_osborne(p_Te.X[idxs_Te,0][mask_Te], p_Te.y[idxs_Te][mask_Te], vals_unc=p_Te.err_y[idxs_Te][mask_Te], x_out=rhop_kp, maxfev=maxfev, reg=reg2, edge_chi=edge_chi, ped_width=ped_width, ne=False)
         _out_pe2 = fp.best_osborne(p_pe.X[idxs_pe,0][mask_pe], p_pe.y[idxs_pe][mask_pe], vals_unc=p_pe.err_y[idxs_pe][mask_pe], x_out=rhop_kp, maxfev=maxfev, reg=reg2, edge_chi=edge_chi, ped_width=ped_width, ne=False)
 
+        ne, ne_popt, ne_perr, ne_chisqr = _out_ne
+        Te, Te_popt, Te_perr, Te_chisqr = _out_Te
+        pe, pe_popt, pe_perr, pe_chisqr = _out_pe
+
+        ne2, ne_popt2, ne_perr2, ne_chisqr2 = _out_ne2
+        Te2, Te_popt2, Te_perr2, Te_chisqr2 = _out_Te2
+        pe2, pe_popt2, pe_perr2, pe_chisqr2 = _out_pe2
+
         if (ne_chisqr2 > ne_chisqr):
             nereg = reg
             print('Using ne reg option 1')
@@ -412,19 +419,19 @@ def get_cmod_kin_profs(shot, tmin, tmax, pre_shift_TS=False, force_to_zero=False
 
         _out_ne = fp.super_fit(p_ne.X[idxs_ne,0][mask_ne], p_ne.y[idxs_ne][mask_ne], vals_unc=p_ne.err_y[idxs_ne][mask_ne], x_out=rhop_kp, edge_focus=False, bounds=None, plot=False)
         _out_Te = fp.super_fit(p_Te.X[idxs_Te,0][mask_Te], p_Te.y[idxs_Te][mask_Te], vals_unc=p_Te.err_y[idxs_Te][mask_Te], x_out=rhop_kp, edge_focus=False, bounds=None, plot=False)
-        _out_pe = fp.super_fit(p_pe.X[idxs_pe,0][mask_Te], p_pe.y[idxs_pe][mask_Te], vals_unc=p_pe.err_y[idxs_pe][mask_pe], x_out=rhop_kp, edge_focus=False, bounds=None, plot=False)
+        _out_pe = fp.super_fit(p_pe.X[idxs_pe,0][mask_pe], p_pe.y[idxs_pe][mask_pe], vals_unc=p_pe.err_y[idxs_pe][mask_pe], x_out=rhop_kp, edge_focus=False, bounds=None, plot=False)
 
     elif fit_type == 'polynomial':
         
         _out_ne = fp.best_polyfit(p_ne.X[idxs_ne,0][mask_ne], p_ne.y[idxs_ne][mask_ne], vals_unc=p_ne.err_y[idxs_ne][mask_ne], x_out=rhop_kp, log=False, use_edge_chisqr=False, deg_list=[2,3,4])
-        _out_Te = fp.best_polyfit(p_Te.X[idxs_Te,0][mask_Te], p_ne.y[idxs_Te][mask_Te], vals_unc=p_Te.err_y[idxs_Te][mask_Te], x_out=rhop_kp, log=False, use_edge_chisqr=False, deg_list=[2,3,4])
+        _out_Te = fp.best_polyfit(p_Te.X[idxs_Te,0][mask_Te], p_Te.y[idxs_Te][mask_Te], vals_unc=p_Te.err_y[idxs_Te][mask_Te], x_out=rhop_kp, log=False, use_edge_chisqr=False, deg_list=[2,3,4])
         _out_pe = fp.best_polyfit(p_pe.X[idxs_pe,0][mask_pe], p_pe.y[idxs_pe][mask_pe], vals_unc=p_pe.err_y[idxs_pe][mask_pe], x_out=rhop_kp, log=False, use_edge_chisqr=False, deg_list=[2,3,4])
 
     elif fit_type == 'exp_polynomial':
 
-        _out_ne = fp.best_polyfit(p_ne.X[idxs_ne,0][mask_ne], p_ne.y[idxs_ne][mask_ne], vals_unc=p_ne.err_y[idxs_ne][mask_ne], x_out=rhop_kp, log=True, use_edge_chisqr=False, deg_list=[2,3,4])
-        _out_Te = fp.best_polyfit(p_Te.X[idxs_Te,0][mask_Te], p_ne.y[idxs_Te][mask_Te], vals_unc=p_Te.err_y[idxs_Te][mask_Te], x_out=rhop_kp, log=True, use_edge_chisqr=False, deg_list=[2,3,4])
-        _out_pe = fp.best_polyfit(p_pe.X[idxs_pe,0][mask_pe], p_pe.y[idxs_pe][mask_pe], vals_unc=p_pe.err_y[idxs_pe][mask_pe], x_out=rhop_kp, log=True, use_edge_chisqr=False, deg_list=[2,3,4])
+        _out_ne = fp.best_polyfit(p_ne.X[idxs_ne,0][mask_ne], p_ne.y[idxs_ne][mask_ne], vals_unc=p_ne.err_y[idxs_ne][mask_ne], x_out=rhop_kp, log=True, use_edge_chisqr=True, deg_list=[2,3,4])
+        _out_Te = fp.best_polyfit(p_Te.X[idxs_Te,0][mask_Te], p_Te.y[idxs_Te][mask_Te], vals_unc=p_Te.err_y[idxs_Te][mask_Te], x_out=rhop_kp, log=True, use_edge_chisqr=True, deg_list=[2,3,4])
+        _out_pe = fp.best_polyfit(p_pe.X[idxs_pe,0][mask_pe], p_pe.y[idxs_pe][mask_pe], vals_unc=p_pe.err_y[idxs_pe][mask_pe], x_out=rhop_kp, log=True, use_edge_chisqr=True, deg_list=[2,3,4])
 
     else:
         raise ValueError('Requested fit type not yet implemented!')
@@ -456,9 +463,25 @@ def get_cmod_kin_profs(shot, tmin, tmax, pre_shift_TS=False, force_to_zero=False
     # now that functions are fit, get gradients
     # Need some mapping from rhop to R to get the gradient - pass in eqtools object, 'e'
 
-    grad_ne = get_fit_gradient(ne, ne_popt, rhop_kp, 'osborne', e, tmin, tmax, grad_type='analytic', wrt='R', reg=nereg, plot=False)
-    grad_Te = get_fit_gradient(Te, Te_popt, rhop_kp, 'osborne', e, tmin, tmax, grad_type='analytic', wrt='R', reg=Tereg, plot=False)
-    grad_pe = get_fit_gradient(pe, pe_popt, rhop_kp, 'osborne', e, tmin, tmax, grad_type='analytic', wrt='R', reg=pereg, plot=False)
+    if fit_type == 'osborne':
+        grad_ne = get_fit_gradient(ne, ne_popt, rhop_kp, fit_type, e, tmin, tmax, grad_type='analytic', wrt='R', plot=False, reg=nereg)
+        grad_Te = get_fit_gradient(Te, Te_popt, rhop_kp, fit_type, e, tmin, tmax, grad_type='analytic', wrt='R', plot=False, reg=Tereg)
+        grad_pe = get_fit_gradient(pe, pe_popt, rhop_kp, fit_type, e, tmin, tmax, grad_type='analytic', wrt='R', plot=False, reg=pereg)
+    elif fit_type == 'omfit_mtanh':
+        grad_ne = get_fit_gradient(ne, ne_popt, rhop_kp, fit_type, e, tmin, tmax, grad_type='analytic', wrt='R', plot=False)
+        grad_Te = get_fit_gradient(Te, Te_popt, rhop_kp, fit_type, e, tmin, tmax, grad_type='analytic', wrt='R', plot=False)
+        grad_pe = get_fit_gradient(pe, pe_popt, rhop_kp, fit_type, e, tmin, tmax, grad_type='analytic', wrt='R', plot=False)
+    elif fit_type == 'polynomial':
+        grad_ne = get_fit_gradient(ne, ne_popt, rhop_kp, fit_type, e, tmin, tmax, grad_type='analytic', wrt='R', plot=False, log=False)
+        grad_Te = get_fit_gradient(Te, Te_popt, rhop_kp, fit_type, e, tmin, tmax, grad_type='analytic', wrt='R', plot=False, log=False)
+        grad_pe = get_fit_gradient(pe, pe_popt, rhop_kp, fit_type, e, tmin, tmax, grad_type='analytic', wrt='R', plot=False, log=False)
+    elif fit_type == 'exp_polynomial':
+        grad_ne = get_fit_gradient(ne, ne_popt, rhop_kp, fit_type, e, tmin, tmax, grad_type='analytic', wrt='R', plot=False, log=True)
+        grad_Te = get_fit_gradient(Te, Te_popt, rhop_kp, fit_type, e, tmin, tmax, grad_type='analytic', wrt='R', plot=False, log=True)
+        grad_pe = get_fit_gradient(pe, pe_popt, rhop_kp, fit_type, e, tmin, tmax, grad_type='analytic', wrt='R', plot=False, log=True)
+    else:
+        raise ValueError('Requested fit type not yet implemented!')
+            
 
 
     # Collect the raw data into profiletools-style object
@@ -472,7 +495,6 @@ def get_cmod_kin_profs(shot, tmin, tmax, pre_shift_TS=False, force_to_zero=False
     f_ne = kinetic_profile(rhop_kp, ne, grad_ne, shot, tmin, tmax)
     f_Te = kinetic_profile(rhop_kp, Te, grad_Te, shot, tmin, tmax)
     f_pe = kinetic_profile(rhop_kp, pe, grad_pe, shot, tmin, tmax)
-
 
 
     #################################
@@ -514,9 +536,24 @@ def get_cmod_kin_profs(shot, tmin, tmax, pre_shift_TS=False, force_to_zero=False
         f_Te.fetch_equilibrium()
         f_pe.fetch_equilibrium()
 
-        f_ne.perturb_mc_err(p_ne, num_mc, maxfev, ped_width, nereg, ne=True, verbose=False, plot=False)
-        f_Te.perturb_mc_err(p_Te, num_mc, maxfev, ped_width, Tereg, ne=False, verbose=False, plot=False)
-        f_pe.perturb_mc_err(p_pe, num_mc, maxfev, ped_width, pereg, ne=False, verbose=False, plot=False)
+        if fit_type == 'osborne':
+            f_ne.perturb_mc_err(p_ne, fit_type, num_mc, verbose=False, plot=False, maxfev=maxfev, ped_width=ped_width, reg=nereg, ne=True)
+            f_Te.perturb_mc_err(p_Te, fit_type, num_mc, verbose=False, plot=False, maxfev=maxfev, ped_width=ped_width, reg=Tereg, ne=False)
+            f_pe.perturb_mc_err(p_pe, fit_type, num_mc, verbose=False, plot=False, maxfev=maxfev, ped_width=ped_width, reg=pereg, ne=False)
+        elif fit_type == 'omfit_mtanh':
+            f_ne.perturb_mc_err(p_ne, fit_type, num_mc, verbose=False, plot=False, edge_focus=False, bounds=None)
+            f_Te.perturb_mc_err(p_Te, fit_type, num_mc, verbose=False, plot=False, edge_focus=False, bounds=None)
+            f_pe.perturb_mc_err(p_pe, fit_type, num_mc, verbose=False, plot=False, edge_focus=False, bounds=None)
+        elif fit_type == 'polynomial':
+            f_ne.perturb_mc_err(p_ne, fit_type, num_mc, verbose=False, plot=False, log=False, use_edge_chisqr=False, deg_list=[len(ne_popt)-1])
+            f_Te.perturb_mc_err(p_Te, fit_type, num_mc, verbose=False, plot=False, log=False, use_edge_chisqr=False, deg_list=[len(Te_popt)-1])
+            f_pe.perturb_mc_err(p_pe, fit_type, num_mc, verbose=False, plot=False, log=False, use_edge_chisqr=False, deg_list=[len(pe_popt)-1])
+        elif fit_type == 'exp_polynomial':
+            f_ne.perturb_mc_err(p_ne, fit_type, num_mc, verbose=False, plot=False, log=True, use_edge_chisqr=True, deg_list=[len(ne_popt)-1])
+            f_Te.perturb_mc_err(p_Te, fit_type, num_mc, verbose=False, plot=False, log=True, use_edge_chisqr=True, deg_list=[len(Te_popt)-1])
+            f_pe.perturb_mc_err(p_pe, fit_type, num_mc, verbose=False, plot=False, log=True, use_edge_chisqr=True, deg_list=[len(pe_popt)-1])
+        else:
+            raise ValueError('Requested fit type not yet implemented!')
             
 
         # Now, refit the mean and save coefficients of mean - in case one is interested in a "mean fit"
@@ -534,19 +571,22 @@ def get_cmod_kin_profs(shot, tmin, tmax, pre_shift_TS=False, force_to_zero=False
 
         elif fit_type == 'polynomial':
 
-            _out_ne = fp.best_polyfit(rhop_kp, f_ne.fit_mean, vals_unc=f_ne.fit_std, x_out=f_ne.x, log=False, use_edge_chisqr=False, deg_list=[2,3,4])
-            _out_Te = fp.best_polyfit(rhop_kp, f_Te.fit_mean, vals_unc=f_Te.fit_std, x_out=f_Te.x, log=False, use_edge_chisqr=False, deg_list=[2,3,4])
-            _out_pe = fp.best_polyfit(rhop_kp, f_pe.fit_mean, vals_unc=f_pe.fit_std, x_out=f_pe.x, log=False, use_edge_chisqr=False, deg_list=[2,3,4])
+            _out_ne = fp.best_polyfit(rhop_kp, f_ne.fit_mean, vals_unc=f_ne.fit_std, x_out=f_ne.x, log=False, use_edge_chisqr=True, deg_list=[len(ne_popt)-1])
+            _out_Te = fp.best_polyfit(rhop_kp, f_Te.fit_mean, vals_unc=f_Te.fit_std, x_out=f_Te.x, log=False, use_edge_chisqr=True, deg_list=[len(Te_popt)-1])
+            _out_pe = fp.best_polyfit(rhop_kp, f_pe.fit_mean, vals_unc=f_pe.fit_std, x_out=f_pe.x, log=False, use_edge_chisqr=True, deg_list=[len(pe_popt)-1])
 
         elif fit_type == 'exp_polynomial':
 
-            _out_ne = fp.best_polyfit(rhop_kp, f_ne.fit_mean, vals_unc=f_ne.fit_std, x_out=f_ne.x, log=True, use_edge_chisqr=False, deg_list=[2,3,4])
-            _out_Te = fp.best_polyfit(rhop_kp, f_Te.fit_mean, vals_unc=f_Te.fit_std, x_out=f_Te.x, log=True, use_edge_chisqr=False, deg_list=[2,3,4])
-            _out_pe = fp.best_polyfit(rhop_kp, f_pe.fit_mean, vals_unc=f_pe.fit_std, x_out=f_pe.x, log=True, use_edge_chisqr=False, deg_list=[2,3,4])
+            _out_ne = fp.best_polyfit(rhop_kp, f_ne.fit_mean, vals_unc=f_ne.fit_std, x_out=f_ne.x, log=True, use_edge_chisqr=False, deg_list=[len(ne_popt)-1])
+            _out_Te = fp.best_polyfit(rhop_kp, f_Te.fit_mean, vals_unc=f_Te.fit_std, x_out=f_Te.x, log=True, use_edge_chisqr=False, deg_list=[len(Te_popt)-1])
+            _out_pe = fp.best_polyfit(rhop_kp, f_pe.fit_mean, vals_unc=f_pe.fit_std, x_out=f_pe.x, log=True, use_edge_chisqr=False, deg_list=[len(pe_popt)-1])
 
         else:
             raise ValueError('Requested fit type not yet implemented!')
 
+        ne_mean, ne_mean_popt, ne_mean_perr, ne_mean_chisqr = _out_ne
+        Te_mean, Te_mean_popt, Te_mean_perr, Te_mean_chisqr = _out_Te
+        pe_mean, pe_mean_popt, pe_mean_perr, pe_mean_chisqr = _out_pe
 
         if plot_fit:
 
@@ -571,7 +611,7 @@ def get_cmod_kin_profs(shot, tmin, tmax, pre_shift_TS=False, force_to_zero=False
     ### store fits, plot, and prepare data for outputs ###
 
     ###############################################
-  
+ 
     # store fit coefficients
     f_ne.save_coefs(ne_popt, ne_mean_popt)
     f_Te.save_coefs(Te_popt, Te_mean_popt)
@@ -607,7 +647,6 @@ def get_cmod_kin_profs(shot, tmin, tmax, pre_shift_TS=False, force_to_zero=False
         plt.gca().plot(rhop_kp, pe)
         plt.gca().legend(['fit','discarded','retained'])
 
-    
     # output fits + profiletools objects for ne and Te so that experimental data points are passed too
     return f_ne, f_Te, f_pe, p_ne_pf, p_Te_pf, p_pe_pf
 
@@ -1161,7 +1200,7 @@ def get_CMOD_gas_fueling(shot, plot=False):
     return time, gas_tot
 
 
-def get_fit_gradient(y, c, rhop, fit_type, eq, tmin, tmax, grad_type='analytic', wrt='R', reg=None, plot=True):
+def get_fit_gradient(y, c, rhop, fit_type, eq, tmin, tmax, grad_type='analytic', wrt='R', plot=True, **kwargs):
     '''Function to do X
 
     This function does X by doing Y   
@@ -1188,13 +1227,11 @@ def get_fit_gradient(y, c, rhop, fit_type, eq, tmin, tmax, grad_type='analytic',
     if grad_type == 'analytic':
 
         if fit_type == 'osborne': 
-            grad = fp.Osborne_Tanh_gradient(x, c, reg=reg)
-        elif fit_type == 'omfit_mtanh': 
+            grad = fp.Osborne_Tanh_gradient(x, c, reg=kwargs['reg'])
+        elif fit_type == 'omfit_mtanh':
             grad = fp.mtanh_profile_gradient(x, edge=c[0], ped=c[1], core=c[2], expin=c[3], expout=c[4], widthp=c[5], xphalf=c[6])
-        elif fit_type == 'polynomial':
-            grad = fp.polyfit_gradient(x, c, log=False)
-        elif fit_type == 'exp_polynomial':
-            grad = fp.polyfit_gradient(x, c, log=True)
+        elif np.logical_or(fit_type == 'polynomial', fit_type == 'exp_polynomial'):
+            grad = fp.polyfit_gradient(x, c, log=kwargs['log'])
         else:
             raise ValueError('Requested fit type not yet implemented!')
 
@@ -1245,7 +1282,7 @@ class kinetic_profile:
         except:
             self.eq = da.CModEFITTree(int(self.shot), tree='analysis', length_unit='m')
 
-    def perturb_mc_err(self, raw, num_mc, maxfev, ped_width, reg, ne=True, verbose=True, plot=False):
+    def perturb_mc_err(self, raw, fit_type, num_mc, verbose=False, plot=False, **kwargs):
         
         err = raw.err_y
 
@@ -1273,32 +1310,30 @@ class kinetic_profile:
 
         for ii in range(max_iter):
             new_pts = raw.y + np.random.normal(scale=raw.err_y)
-    
+            if fit_type[:3] == 'exp': new_pts = np.maximum(new_pts,1e-10) # make small positive value for log 
+     
             try:
                 if fit_type == 'osborne':
-                    _out = fp.best_osborne(raw.X[:,0], new_pts, vals_unc=raw.err_y, x_out=self.x, maxfev=maxfev, reg=reg, ped_width=ped_width, ne=ne)
+                    _out = fp.best_osborne(raw.X[:,0], new_pts, vals_unc=raw.err_y, x_out=self.x, maxfev=kwargs['maxfev'], reg=kwargs['reg'], ped_width=kwargs['ped_width'], ne=kwargs['ne'])
 
                 elif fit_type == 'omfit_mtanh':
-                    _out = fp.super_fit(raw.X[:,0], new_pts, vals_unc=raw.err_y, x_out=self.x, edge_focus=False, bounds=None, plot=False)
+                    _out = fp.super_fit(raw.X[:,0], new_pts, vals_unc=raw.err_y, x_out=self.x, edge_focus=kwargs['edge_focus'], bounds=kwargs['bounds'])
 
-                elif fit_type == 'polynomial':
-                    _out = fp.best_polyfit(raw.X[:,0], new_pts, vals_unc=raw.err_y, x_out=self.x, log=False, use_edge_chisqr=False, deg_list=[2,3,4])
-
-                elif fit_type == 'exp_polynomial':
-                    _out = fp.best_polyfit(raw.X[:,0], new_pts, vals_unc=raw.err_y, x_out=self.x, log=True, use_edge_chisqr=False, deg_list=[2,3,4])
+                elif np.logical_or(fit_type == 'polynomial', fit_type == 'exp_polynomial'):
+                    _out = fp.best_polyfit(raw.X[:,0], new_pts, vals_unc=raw.err_y, x_out=self.x, log=kwargs['log'], use_edge_chisqr=kwargs['use_edge_chisqr'], deg_list=kwargs['deg_list'])
 
                 else:
                     raise ValueError('Requested fit type not yet implemented!')
 
                 fit_dist[ii], popt, perr, xsqr_dist[ii] = _out
-                grad_fit_dist[ii] = get_fit_gradient(fit_dist[ii], popt, self.x, 'osborne', self.eq, self.tmin, self.tmax, grad_type='analytic', wrt='R', reg=reg, plot=False)
+                grad_fit_dist[ii] = get_fit_gradient(fit_dist[ii], popt, self.x, fit_type, self.eq, self.tmin, self.tmax, grad_type='analytic', wrt='R', plot=False, **kwargs)
 
                 if verbose: 
                     print('MC iteration {}'.format(ii), 'XSQR = {:.3f}'.format(xsqr_dist[ii]))
 
                     if plot: ax.plot(self.x, fit_dist[ii], 'k-')
            
-                if not np.isfinite(fit_dist[ii]).all():
+                if not (np.isfinite(fit_dist[ii]).all() and np.isfinite(grad_fit_dist[ii]).all()):
                     inf_vals_fd = ~np.isfinite(fit_dist[ii])
                     inf_vals_gfd = ~np.isfinite(grad_fit_dist[ii])
                     # just fill them with nans for consistency / handling later
@@ -1316,7 +1351,6 @@ class kinetic_profile:
                 xsqr_dist[ii] = np.nan
 
                 print('MC fit number {} didnt work - ignoring'.format(ii))
-
 
         # now sort chisqr distributions and get rid of top 10%
         num_mc_10p = int(np.ceil(num_mc/10))
