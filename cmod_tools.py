@@ -815,7 +815,7 @@ def create_pe(p_ne, p_Te):
     template_inds = list(set(template_inds))
     check_inds = list(set(check_inds))
 
-    unlist_templatelist = [ll for subtemp in check_avg for ll in subtemp]
+    unlist_templatelist = [ll for subtemp in template_avg for ll in subtemp]
     unlist_checklist = [ll for subcheck in check_avg for ll in subcheck]
     
     template_X = [p_template_X[tX] for tX in template_inds if tX not in unlist_templatelist]
@@ -2191,7 +2191,7 @@ def integrate_ts2tci(shot, tmin, tmax, nl_num=4, plot=False):
             nl_ts[i] = cumtrapz(y,x)[-1]
 
     if plot:
-
+        electrons = MDSplus.Tree('electrons', shot)
         ch_str = '0' + str(nl_num) if nl_num < 10 else str(nl_num)
         tci_node = '.tci.results:nl_{}'.format(ch_str)
         tci = electrons.getNode('\\electrons::top{}'.format(tci_node)).data()
@@ -2230,10 +2230,10 @@ def map_ts2tci(shot, tmin, tmax, nl_num=4):
     electrons = MDSplus.Tree('electrons', shot)
     try: # needs to be shot > ~1020900000 for this one to work
 
-        t_ts = electrons.getNode('\\electrons:top.yag_new.results.profiles:ne_rz').dim_of(0).data()
-        ne_ts_core = electrons.getNode('\\electrons:top.yag_new.results.profiles:ne_rz').data()
-        ne_ts_core_err = electrons.getNode('\\electrons:top.yag_new.results.profiles:ne_err').data()
-        z_ts_core = electrons.getNode('\\electrons:top.yag_new.results.profiles:z_sorted').data()
+        t_ts = electrons.getNode('\\electrons::top.yag_new.results.profiles:ne_rz').dim_of(0).data()
+        ne_ts_core = electrons.getNode('\\electrons::top.yag_new.results.profiles:ne_rz').data()
+        ne_ts_core_err = electrons.getNode('\\electrons::top.yag_new.results.profiles:ne_err').data()
+        z_ts_core = electrons.getNode('\\electrons::top.yag_new.results.profiles:z_sorted').data()
         # t_ts = OMFITmdsValue(server='CMOD', shot=shot, treename='electrons', TDI='\\electrons::top.yag_new.results.profiles:ne_rz').dim_of(0)
         # ne_ts_core = OMFITmdsValue(server='CMOD', shot=shot, treename='electrons', TDI='\\electrons::top.yag_new.results.profiles:ne_rz').data()
         # ne_ts_core_err = OMFITmdsValue(server='CMOD', shot=shot, treename='electrons', TDI='\\electrons::top.yag_new.results.profiles:ne_err').data()
@@ -2242,10 +2242,10 @@ def map_ts2tci(shot, tmin, tmax, nl_num=4):
 
     except: # if not, old core TS system
 
-        t_ts = electrons.getNode('\\electrons:top.yag.results.global.profile:ne_rz_t').dim_of(0).data()
-        ne_ts_core = electrons.getNode('\\electrons:top.yag.results.global.profile:ne_rz_t').data()
-        ne_ts_core_err = electrons.getNode('\\electrons:top.yag.results.global.profile:ne_err_zt').data()
-        z_ts_core = electrons.getNode('\\electrons:top.yag.results.global.profile:z_sorted').data()
+        t_ts = electrons.getNode('\\electrons::top.yag.results.global.profile:ne_rz_t').dim_of(0).data()
+        ne_ts_core = electrons.getNode('\\electrons::top.yag.results.global.profile:ne_rz_t').data()
+        ne_ts_core_err = electrons.getNode('\\electrons::top.yag.results.global.profile:ne_err_zt').data()
+        z_ts_core = electrons.getNode('\\electrons::top.yag.results.global.profile:z_sorted').data()
         # t_ts = OMFITmdsValue(server='CMOD', shot=shot, treename='electrons', TDI='\\electrons::top.yag.results.global.profile:ne_rz_t').dim_of(0)
         # ne_ts_core = OMFITmdsValue(server='CMOD', shot=shot, treename='electrons', TDI='\\electrons::top.yag.results.global.profile:ne_rz_t').data()
         # ne_ts_core_err = OMFITmdsValue(server='CMOD', shot=shot, treename='electrons', TDI='\\electrons::top.yag.results.global.profile:ne_err_zt').data()
@@ -2326,7 +2326,7 @@ def map_ts2tci(shot, tmin, tmax, nl_num=4):
 
 
     m_tci = 501 # Had to increase this from 101 to make the interpolation work in i, j loop coming up
-    z_tci = -0.4 + 0.8*np.linspace(1,m_tci-1,m_tci)/np.float(m_tci - 1) ## What is findgen?
+    z_tci = -0.4 + 0.8*np.linspace(1,m_tci-1,m_tci)/float(m_tci - 1) ## What is findgen?
     r_tci = r_tci[nl_num-1] + np.zeros(m_tci)
 
 
@@ -2383,21 +2383,20 @@ def parse_yags(shot):
     ### PARSE THOSE YAGS!
 
     electrons = MDSplus.Tree('electrons', shot)
-    try:    
-        n_yag1 = electrons.getNode('\\knobs:pulses_q').data()[0]
-        # n_yag1 = OMFITmdsValue(server='CMOD', shot=shot, treename='electrons', TDI='\\knobs:pulses_q').data()[0]
+    try:
+        n_yag1 = electrons.getNode('\\knobs:pulses_q').data()
     except:
         n_yag1 = 0
         print('Laser 1 may not be working')
     try:
-        n_yag2 = electrons.getNode('\\knobs:pulses_q_2').data()[0]
-        # n_yag2 = OMFITmdsValue(server='CMOD', shot=shot, treename='electrons', TDI='\\knobs:pulses_q_2').data()[0]
+        n_yag2 = electrons.getNode('\\knobs:pulses_q_2').data()
     except:
         n_yag2 = 0
         print('Laser 2 may not be working')
 
-    dark = electrons.getNode('\\n_dark_prior').data()[0]
-    n_total = electrons.getNode('\\n_total').data()[0]
+    dark = electrons.getNode('\\n_dark_prior').data()
+    n_total = electrons.getNode('\\n_total').data()
+
     # dark = OMFITmdsValue(server='CMOD', shot=shot, treename='electrons', TDI='\\n_dark_prior').data()[0]
     # n_total = OMFITmdsValue(server='CMOD', shot=shot, treename='electrons', TDI='\\n_total').data()[0]
     n_t = n_total - dark

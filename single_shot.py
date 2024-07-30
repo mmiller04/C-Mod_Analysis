@@ -447,9 +447,9 @@ if __name__=='__main__':
     #tmax = 1.1
 
     # test L-mode
-    shot = 1070830006
-    tmin = 0.85
-    tmax = 0.9
+    shot = 1080304020
+    tmin = 1.4
+    tmax = 1.5
 
     ############
     ne_min = 1e12 # cm^{-3}
@@ -458,7 +458,7 @@ if __name__=='__main__':
     force_to_zero = True # helps constrain fits if there's not good SOL coverage
     num_mc = 5 # to estimate fitting error - can probably speed this up jamie's method of repassing
                # in fit parameters into new iteration and vectorizing
-    fit_type = 'omfit_mtanh' #osborne, omfit_mtanh, polynomial, exp_polynomial
+    fit_type = 'polynomial' #osborne, omfit_mtanh, polynomial, exp_polynomial
  
     import time
     start_time = time.time()

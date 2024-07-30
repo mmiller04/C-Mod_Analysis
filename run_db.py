@@ -19,17 +19,13 @@ import time as _time
 
 # set variables to create database in your own directory 
 data_loc = '/home/millerma/thomson_separatrix/shotlists/'
-db_filestem = 'test_db'
+db_filestem = 'test_full_shot'
 regime = 'any'
 each_thomson = True
 
 ##########################################################
 
-rhop_loc=1.0 #0.99 #1.0
-rhop_ped_range = [0.95,0.99] # range of rhop that is considered "pedestal" for gradient scale lengths
 rhop_vec = np.linspace(0.94, 1.1, 100)
-
-rhop_sol = 1.01 # rhop value at which SOL quantities shall we evaluated
 
 # load list of shots and times
 tables = {}
@@ -38,6 +34,9 @@ tables[regime] = np.loadtxt(data_loc+db_filestem+'.txt', skiprows=2, usecols=(1,
 mds_vars = ['Bt','Bp','betat','Ip','nebar','P_RF','P_rad_diode','P_rad_main','p_D2','q95','Wmhd','dWdt',\
             'Lgap', 'Rgap', 'kappa', 'ssep', 'Udelta', 'Ldelta',\
             'P_oh','li','p_E_BOT_MKS','p_B_BOT_MKS', 'p_F_CRYO_MKS', 'p_G_SIDE_RAT'] #, 'P_tot','P_sol']
+# ip, p_*, 
+# no gradients, keep raw data, keep profiles
+# keep inst fueling rate
 
 var_list = ['ne_prof','ne_prof_unc','Te_prof','Te_prof_unc','pe_prof','pe_prof_unc',\
             'grad_ne_prof','grad_ne_prof_unc','grad_Te_prof','grad_Te_prof_unc','grad_pe_prof','grad_pe_prof_unc',\
@@ -139,7 +138,7 @@ def main_db():
         res[field] = np.array(res[field])
     
     num_windows_to_store = len(res['shot'])
-    print('Requested {} windows - storing {} windows'.format(win, num_windows_to_store-num_windows_db))
+    print('Requested {} windows - storing {} windows'.format(win, num_windows_to_store))
 
     # store results
     with open(db_filestem+'.pkl', 'wb') as f:
@@ -151,7 +150,7 @@ def run_db(res, windows, plot_kin=False, user_check=False):
     # create database on all (or num_windows) 100-ms-long time windows
 
     curr_window = 0
-    ftz = True
+    ftz = False
     t0 = _time.time()
 
     for regime in windows:
@@ -164,19 +163,20 @@ def run_db(res, windows, plot_kin=False, user_check=False):
                 time = (tmax+tmin)/2.
                 print(shot, regime, widx, tmin, tmax)
 
-                try: 
-                    mult_factor = cmod_tools.get_ts_tci_ratio(shot, tmin, tmax, plot=False)
-                    print('TS multiplication factor is {:.2f}'.format(mult_factor))
-                    core_ts_mult, edge_ts_mult = True, True
+                #try: 
+                mult_factor = cmod_tools.get_ts_tci_ratio(shot, tmin, tmax, plot=False)
+                print('TS multiplication factor is {:.2f}'.format(mult_factor))
+                core_ts_mult, edge_ts_mult = True, True
 
-                except:
-                    print('Some stupid thing happened, skipping')
-                    mult_factor = np.nan
-                    core_ts_mult, edge_ts_mult = False, False
+                #except:
+                #    print('Some stupid thing happened, skipping')
+                #    mult_factor = np.nan
+                #    core_ts_mult, edge_ts_mult = False, False
 
                 try:
                     kp_out = cmod_tools.get_cmod_kin_profs(shot,tmin,tmax,
                                                            apply_final_sep_stretch=False, force_to_zero=ftz,
+                                                           fit_type='osborne',
                                                            frac_err=False, num_mc=5, 
                                                            core_ts_mult=False,
                                                            edge_ts_mult=False)
@@ -321,9 +321,25 @@ def run_db(res, windows, plot_kin=False, user_check=False):
                 res['R_sep'].append(e.rho2rho('sqrtpsinorm', 'Rmid', 1, time))
 
                 # request for Bpol at the midplane
-                Bp_OMP = np.abs(e.rz2BZ(res['R_sep'][-1], 0, time))
-                Bt_OMP = np.abs(e.rz2BT(res['R_sep'][-1], 0, time))
-                
+                try: 
+                    Bt_OMP = np.abs(e.rz2BT(Rlcfs, 0, time)) 
+                    Bp_OMP = np.abs(e.rz2BZ(Rlcfs, 0, time)) 
+                except:
+                    # Bp
+                    t,ddata = da.get_CMOD_var(var='Bp', shot=shot, return_time=True)
+                    if ddata is not None and np.any(~np.isnan(ddata)):
+                        Bp_OMP = np.mean(ddata[np.argmin(np.abs(t-tmin)):np.argmin(np.abs(t-tmax))])
+                    else:
+                        Bp_OMP = np.nan
+
+                    # Bt
+                    t,ddata = da.get_CMOD_var(var='Bt', shot=shot, return_time=True)
+                    if ddata is not None and np.any(~np.isnan(ddata)):
+                        Bt_OMP = np.mean(ddata[np.argmin(np.abs(t-tmin)):np.argmin(np.abs(t-tmax))])
+                    else:
+                        Bt_OMP = np.nan
+                    print('Could not calculate Bt, Bp at the OMP - using on-axis values')
+
                 res['Bp_OMP'].append(Bp_OMP)
                 res['Bt_OMP'].append(Bt_OMP)
 

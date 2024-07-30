@@ -85,9 +85,25 @@ def Teu_2pt_model(shot,tmin,tmax, lambdaq_opt=1, rhop_vec=None, ne=None, Te=None
     except:
         e = da.CModEFITTree(int(shot), tree='analysis', length_unit='m')
     Rlcfs = e.rho2rho('psinorm', 'Rmid', 1, time)
-    
-    Bt = np.abs(e.rz2BT(Rlcfs, 0, time)) 
-    Bp = np.abs(e.rz2BZ(Rlcfs, 0, time)) 
+   
+    try: 
+        Bt = np.abs(e.rz2BT(Rlcfs, 0, time)) 
+        Bp = np.abs(e.rz2BZ(Rlcfs, 0, time)) 
+    except:
+        # Bp
+        t,ddata = da.get_CMOD_var(var='Bp', shot=shot, return_time=True)
+        if ddata is not None and np.any(~np.isnan(ddata)):
+            Bp = np.mean(ddata[np.argmin(np.abs(t-tmin)):np.argmin(np.abs(t-tmax))])
+        else:
+            Bp = np.nan
+
+        # Bt
+        t,ddata = da.get_CMOD_var(var='Bt', shot=shot, return_time=True)
+        if ddata is not None and np.any(~np.isnan(ddata)):
+            Bt = np.mean(ddata[np.argmin(np.abs(t-tmin)):np.argmin(np.abs(t-tmax))])
+        else:
+            Bt = np.nan
+        print('Could not calculate Bt, Bp at the OMP - using on-axis values')
 
     if lambdaq_opt==1:
         # now get 2-point model prediction
