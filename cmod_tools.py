@@ -33,7 +33,7 @@ import data_access as da
 def get_cmod_kin_profs(shot, tmin, tmax, pre_shift_TS=False, force_to_zero=False, frac_err=True, num_mc=100,
                        fit_type='osborne', apply_final_sep_stretch=False,
                        core_ts_mult=False, edge_ts_mult=False, core_ts_factor=1, edge_ts_factor=1,
-                       plot_fit=False):
+                       plot_fit=False, prepost_filter=True):
     '''Function to load and fit modified-tanh functions to C-Mod ne and Te.
 
     This function is designed to be robust for operation within the construction of
@@ -305,9 +305,10 @@ def get_cmod_kin_profs(shot, tmin, tmax, pre_shift_TS=False, force_to_zero=False
     
     # Create coordinate array to output fitted profiles onto
     rhop_kp = np.linspace(0.0, 1.1, 1000)
-    
-    # Filter out some points with large uncertainties before the fit - may want to change this and make it more flexible
-    p_ne, p_Te = prefit_filter(p_ne, p_Te)
+   
+    if prepost_filter: 
+        # Filter out some points with large uncertainties before the fit - may want to change this and make it more flexible
+        p_ne, p_Te = prefit_filter(p_ne, p_Te)
 
     # Force fits to go down in the SOL to make the routine more robust - should be able to modify where and how low
     if force_to_zero:
@@ -349,8 +350,9 @@ def get_cmod_kin_profs(shot, tmin, tmax, pre_shift_TS=False, force_to_zero=False
     ne, ne_popt, ne_perr, ne_chisqr = _out_ne
     Te, Te_popt, Te_perr, Te_chisqr = _out_Te
 
-    # Apply filter depending on initial fit - in short, excludes points far from the fit
-    p_ne, p_Te = postfit_filter(p_ne, p_Te, ne, Te, rhop_kp)
+    if prepost_filter:
+        # Apply filter depending on initial fit - in short, excludes points far from the fit
+        p_ne, p_Te = postfit_filter(p_ne, p_Te, ne, Te, rhop_kp)
 
 
     # Add the zeros back in in the SOL in case they were removed by the pre/postfit filters

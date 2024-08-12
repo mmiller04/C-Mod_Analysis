@@ -23,6 +23,8 @@ db_filestem = 'test_full_shot'
 regime = 'any'
 each_thomson = True
 reduced_outputs = True
+fit_type = 'osborne' #omfit_mtanh, polynomial, exp_polynomial
+prepost_filter = False
 
 ##########################################################
 
@@ -186,11 +188,12 @@ def run_db(res, windows, plot_kin=False, user_check=False):
                 try:
                     kp_out = cmod_tools.get_cmod_kin_profs(shot,tmin,tmax,
                                                            apply_final_sep_stretch=False, force_to_zero=ftz,
-                                                           fit_type='polynomial',
+                                                           fit_type=fit_type,
                                                            frac_err=True, num_mc=5, 
                                                            core_ts_mult=False,
                                                            edge_ts_mult=False,
-                                                           plot_fit=False)
+                                                           plot_fit=False
+                                                           prepost_filter=prepost_filter)
 
                     f_ne, f_Te, f_pe, p_ne, p_Te, p_pe  = kp_out
  
