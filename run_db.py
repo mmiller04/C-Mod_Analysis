@@ -22,6 +22,7 @@ data_loc = '/home/millerma/thomson_separatrix/shotlists/'
 db_filestem = 'test_full_shot'
 regime = 'any'
 each_thomson = True
+reduced_outputs = True
 
 ##########################################################
 
@@ -31,24 +32,33 @@ rhop_vec = np.linspace(0.94, 1.1, 100)
 tables = {}
 tables[regime] = np.loadtxt(data_loc+db_filestem+'.txt', skiprows=2, usecols=(1,2,3))
 
-mds_vars = ['Bt','Bp','betat','Ip','nebar','P_RF','P_rad_diode','P_rad_main','p_D2','q95','Wmhd','dWdt',\
-            'Lgap', 'Rgap', 'kappa', 'ssep', 'Udelta', 'Ldelta',\
-            'P_oh','li','p_E_BOT_MKS','p_B_BOT_MKS', 'p_F_CRYO_MKS', 'p_G_SIDE_RAT'] #, 'P_tot','P_sol']
-# ip, p_*, 
-# no gradients, keep raw data, keep profiles
-# keep inst fueling rate
+if reduced_outputs:
+    mds_vars = ['Ip', 'p_E_BOT_MKS', 'p_B_BOT_MKS', 'p_F_CRYO_MKS', 'p_G_SIDE_RAT']
 
-var_list = ['ne_prof','ne_prof_unc','Te_prof','Te_prof_unc','pe_prof','pe_prof_unc',\
-            'grad_ne_prof','grad_ne_prof_unc','grad_Te_prof','grad_Te_prof_unc','grad_pe_prof','grad_pe_prof_unc',\
-            'ne_raw','ne_raw_unc','Te_raw','Te_raw_unc','pe_raw','pe_raw_unc',\
-            'ne_fit_coefs','ne_mean_coefs','Te_fit_coefs','Te_mean_coefs','pe_fit_coefs','pe_mean_coefs',\
-            'area_LCFS','R_prof','rhop_prof','R_raw','rhop_raw',\
-            'ne_R','Te_R','pe_R','ne_rhop','Te_rhop','pe_rhop',\
-            'shot','tmin','tmax','f_gw','n_m3_avg','T_eV_avg','p_Pa_avg','gas_rate','gas_fuel','gas_cum',\
-            'gradB_drift_up', 'favorable','regime','widx','CRYO_ON','R_geo','a_geo','R_sep','lam_q','Bp_OMP','Bt_OMP','ts_mult_factor',\
-            'outer_rho_fmp_m','outer_ne_fmp_cm3','outer_Te_fmp_eV','outer_Js_fmp_Acm2',\
-            'inner_rho_fmp_m','inner_ne_fmp_cm3','inner_Te_fmp_eV','inner_Js_fmp_Acm2',\
-            'upper_rho_fmp_m','upper_ne_fmp_cm3','upper_Te_fmp_eV','upper_Js_fmp_Acm2']
+    var_list = ['ne_prof','ne_prof_unc','Te_prof','Te_prof_unc','pe_prof','pe_prof_unc',\
+                'ne_raw','ne_raw_unc','Te_raw','Te_raw_unc','pe_raw','pe_raw_unc',\
+                'ne_fit_coefs','ne_mean_coefs','Te_fit_coefs','Te_mean_coefs','pe_fit_coefs','pe_mean_coefs',\
+                'area_LCFS','R_prof','rhop_prof','R_raw','rhop_raw',\
+                'ne_R','Te_R','pe_R','ne_rhop','Te_rhop','pe_rhop',\
+                'shot','tmin','tmax','gas_rate','gas_fuel','gas_cum',\
+                'CRYO_ON','ts_mult_factor']
+
+else:
+    mds_vars = ['Bt','Bp','betat','Ip','nebar','P_RF','P_rad_diode','P_rad_main','p_D2','q95','Wmhd','dWdt',\
+                'Lgap', 'Rgap', 'kappa', 'ssep', 'Udelta', 'Ldelta',\
+                'P_oh','li','p_E_BOT_MKS','p_B_BOT_MKS', 'p_F_CRYO_MKS', 'p_G_SIDE_RAT'] #, 'P_tot','P_sol']
+
+    var_list = ['ne_prof','ne_prof_unc','Te_prof','Te_prof_unc','pe_prof','pe_prof_unc',\
+                'grad_ne_prof','grad_ne_prof_unc','grad_Te_prof','grad_Te_prof_unc','grad_pe_prof','grad_pe_prof_unc',\
+                'ne_raw','ne_raw_unc','Te_raw','Te_raw_unc','pe_raw','pe_raw_unc',\
+                'ne_fit_coefs','ne_mean_coefs','Te_fit_coefs','Te_mean_coefs','pe_fit_coefs','pe_mean_coefs',\
+                'area_LCFS','R_prof','rhop_prof','R_raw','rhop_raw',\
+                'ne_R','Te_R','pe_R','ne_rhop','Te_rhop','pe_rhop',\
+                'shot','tmin','tmax','f_gw','n_m3_avg','T_eV_avg','p_Pa_avg','gas_rate','gas_fuel','gas_cum',\
+                'gradB_drift_up', 'favorable','regime','widx','CRYO_ON','R_geo','a_geo','R_sep','lam_q','Bp_OMP','Bt_OMP','ts_mult_factor']
+
+
+
 
 
 def smooth(y, box_pts):
@@ -176,10 +186,11 @@ def run_db(res, windows, plot_kin=False, user_check=False):
                 try:
                     kp_out = cmod_tools.get_cmod_kin_profs(shot,tmin,tmax,
                                                            apply_final_sep_stretch=False, force_to_zero=ftz,
-                                                           fit_type='osborne',
-                                                           frac_err=False, num_mc=5, 
+                                                           fit_type='polynomial',
+                                                           frac_err=True, num_mc=5, 
                                                            core_ts_mult=False,
-                                                           edge_ts_mult=False)
+                                                           edge_ts_mult=False,
+                                                           plot_fit=False)
 
                     f_ne, f_Te, f_pe, p_ne, p_Te, p_pe  = kp_out
  
@@ -222,11 +233,12 @@ def run_db(res, windows, plot_kin=False, user_check=False):
                     #continue - dont need to kill the process, just flag it
 
                 #####
-                res['regime'].append(regime)
                 res['shot'].append(shot)
-                res['widx'].append(widx)                
                 res['tmin'].append(tmin)
                 res['tmax'].append(tmax)
+                if not reduced_outputs:
+                    res['widx'].append(widx)                
+                    res['regime'].append(regime)
                 res['ts_mult_factor'].append(mult_factor)
                 
                 # collect quantities from MDS
@@ -255,19 +267,6 @@ def run_db(res, windows, plot_kin=False, user_check=False):
                         print(e)
                         res[var].append(np.nan)
 
-                # determine grad-B drift direction and divertor location
-                gradB_drift_up = False if res['Bt'][-1]<0 else True
-                res['gradB_drift_up'].append(gradB_drift_up)
-                # define USN as having ssep>0.1 and LSN as having ssep<-0.1
-                if np.isnan(res['ssep'][-1]):  # IWL plasmas
-                    res['favorable'].append(np.nan)
-                elif -0.1<res['ssep'][-1]<0.1:
-                    res['favorable'].append(0.)
-                elif (gradB_drift_up and res['ssep'][-1]>0.1) or (gradB_drift_up==False and res['ssep'][-1]<-0.1):
-                    res['favorable'].append(1.)
-                else:
-                    res['favorable'].append(-1.)
-                        
                 # get gas-puff rate and cumulative gas fueling
                 try:
                     gas_time, gas_tot = cmod_tools.get_CMOD_gas_fueling(shot, plot=False) #Torr-l
@@ -291,57 +290,58 @@ def run_db(res, windows, plot_kin=False, user_check=False):
                     res['gas_cum'].append(np.nan)
         
                 # recalculate lam_q to add to database
-                lam_T_nl = 1
-                Te_sep_eV, lam_q_mm = pb.Teu_2pt_model(shot, tmin, tmax, lambdaq_opt=1)
-                res['lam_q'].append(lam_q_mm)
+                if not reduced_outputs:
+                    lam_T_nl = 1
+                    Te_sep_eV, lam_q_mm = pb.Teu_2pt_model(shot, tmin, tmax, lambdaq_opt=1)
+                    res['lam_q'].append(lam_q_mm)
                     
-                # get efit info - these are important for separatrix OS, but do not know how to do this with eqtools
-                try:
-                    # load magnetic geometry
-                    geqdsk, gfile_name = cmod_tools.get_geqdsk_cmod(
-                             shot, time*1e3, gfiles_loc = '/home/millerma/lya/gfiles/', return_fname=True)
+                    # get efit info - these are important for separatrix OS, but do not know how to do this with eqtools
+                    try:
+                        # load magnetic geometry
+                        geqdsk, gfile_name = cmod_tools.get_geqdsk_cmod(
+                                 shot, time*1e3, gfiles_loc = '/home/millerma/lya/gfiles/', return_fname=True)
                 
-                    res['R_geo'].append(geqdsk['fluxSurfaces']['geo']['R'][-1]) # indexes LCFS
-                    res['a_geo'].append(geqdsk['fluxSurfaces']['geo']['a'][-1]) # LCFS
+                        res['R_geo'].append(geqdsk['fluxSurfaces']['geo']['R'][-1]) # indexes LCFS
+                        res['a_geo'].append(geqdsk['fluxSurfaces']['geo']['a'][-1]) # LCFS
                     
-                    # 'areao' output from aeqdsk doesn't seem to give area of LCFS in m^2.... use clearer output in geqdsk
-                    res['area_LCFS'].append(geqdsk['fluxSurfaces']['geo']['surfArea'][-1])
+                        # 'areao' output from aeqdsk doesn't seem to give area of LCFS in m^2.... use clearer output in geqdsk
+                        res['area_LCFS'].append(geqdsk['fluxSurfaces']['geo']['surfArea'][-1])
                 
-                except:
-                    res['R_geo'].append(np.nan)
-                    res['a_geo'].append(np.nan)
-                    res['area_LCFS'].append(np.nan)
+                    except:
+                        res['R_geo'].append(np.nan)
+                        res['a_geo'].append(np.nan)
+                        res['area_LCFS'].append(np.nan)
     
-                try: # EFIT20 only exists for shots from certain years
-                    e = da.CModEFITTree(int(shot), tree='EFIT20', length_unit='m')
-                except:
-                    e = da.CModEFITTree(int(shot), tree='analysis', length_unit='m')
-                time = (tmin + tmax)/2
+                    try: # EFIT20 only exists for shots from certain years
+                        e = da.CModEFITTree(int(shot), tree='EFIT20', length_unit='m')
+                    except:
+                        e = da.CModEFITTree(int(shot), tree='analysis', length_unit='m')
+                    time = (tmin + tmax)/2
 
-                res['R_sep'].append(e.rho2rho('sqrtpsinorm', 'Rmid', 1, time))
+                    res['R_sep'].append(e.rho2rho('sqrtpsinorm', 'Rmid', 1, time))
 
-                # request for Bpol at the midplane
-                try: 
-                    Bt_OMP = np.abs(e.rz2BT(Rlcfs, 0, time)) 
-                    Bp_OMP = np.abs(e.rz2BZ(Rlcfs, 0, time)) 
-                except:
-                    # Bp
-                    t,ddata = da.get_CMOD_var(var='Bp', shot=shot, return_time=True)
-                    if ddata is not None and np.any(~np.isnan(ddata)):
-                        Bp_OMP = np.mean(ddata[np.argmin(np.abs(t-tmin)):np.argmin(np.abs(t-tmax))])
-                    else:
-                        Bp_OMP = np.nan
+                    # request for Bpol at the midplane
+                    try: 
+                        Bt_OMP = np.abs(e.rz2BT(Rlcfs, 0, time)) 
+                        Bp_OMP = np.abs(e.rz2BZ(Rlcfs, 0, time)) 
+                    except:
+                        # Bp
+                        t,ddata = da.get_CMOD_var(var='Bp', shot=shot, return_time=True)
+                        if ddata is not None and np.any(~np.isnan(ddata)):
+                            Bp_OMP = np.mean(ddata[np.argmin(np.abs(t-tmin)):np.argmin(np.abs(t-tmax))])
+                        else:
+                            Bp_OMP = np.nan
 
-                    # Bt
-                    t,ddata = da.get_CMOD_var(var='Bt', shot=shot, return_time=True)
-                    if ddata is not None and np.any(~np.isnan(ddata)):
-                        Bt_OMP = np.mean(ddata[np.argmin(np.abs(t-tmin)):np.argmin(np.abs(t-tmax))])
-                    else:
-                        Bt_OMP = np.nan
-                    print('Could not calculate Bt, Bp at the OMP - using on-axis values')
+                        # Bt
+                        t,ddata = da.get_CMOD_var(var='Bt', shot=shot, return_time=True)
+                        if ddata is not None and np.any(~np.isnan(ddata)):
+                            Bt_OMP = np.mean(ddata[np.argmin(np.abs(t-tmin)):np.argmin(np.abs(t-tmax))])
+                        else:
+                            Bt_OMP = np.nan
+                        print('Could not calculate Bt, Bp at the OMP - using on-axis values')
 
-                res['Bp_OMP'].append(Bp_OMP)
-                res['Bt_OMP'].append(Bt_OMP)
+                    res['Bp_OMP'].append(Bp_OMP)
+                    res['Bt_OMP'].append(Bt_OMP)
 
                 sres = single_shot.assemble_into_dict(shot, tmin, tmax, 
                                                         f_ne, f_Te, f_pe,
@@ -355,14 +355,15 @@ def run_db(res, windows, plot_kin=False, user_check=False):
                 res['Te_prof_unc'].append(interp1d(lyares_fit['rhop'],lyares_fit['Te_unc'],bounds_error=False)(rhop_vec))
                 res['pe_prof'].append(interp1d(lyares_fit['rhop'],lyares_fit['pe'],bounds_error=False)(rhop_vec))
                 res['pe_prof_unc'].append(interp1d(lyares_fit['rhop'],lyares_fit['pe_unc'],bounds_error=False)(rhop_vec))
-                
-                res['grad_ne_prof'].append(interp1d(lyares_fit['rhop'],lyares_fit['grad_ne'],bounds_error=False)(rhop_vec))
-                res['grad_ne_prof_unc'].append(interp1d(lyares_fit['rhop'],lyares_fit['grad_ne_unc'],bounds_error=False)(rhop_vec))
-                res['grad_Te_prof'].append(interp1d(lyares_fit['rhop'],lyares_fit['grad_Te'],bounds_error=False)(rhop_vec))
-                res['grad_Te_prof_unc'].append(interp1d(lyares_fit['rhop'],lyares_fit['grad_Te_unc'],bounds_error=False)(rhop_vec))
-                res['grad_pe_prof'].append(interp1d(lyares_fit['rhop'],lyares_fit['grad_pe'],bounds_error=False)(rhop_vec))
-                res['grad_pe_prof_unc'].append(interp1d(lyares_fit['rhop'],lyares_fit['grad_pe_unc'],bounds_error=False)(rhop_vec))
-                
+           
+                if not reduced_outputs:     
+                    res['grad_ne_prof'].append(interp1d(lyares_fit['rhop'],lyares_fit['grad_ne'],bounds_error=False)(rhop_vec))
+                    res['grad_ne_prof_unc'].append(interp1d(lyares_fit['rhop'],lyares_fit['grad_ne_unc'],bounds_error=False)(rhop_vec))
+                    res['grad_Te_prof'].append(interp1d(lyares_fit['rhop'],lyares_fit['grad_Te'],bounds_error=False)(rhop_vec))
+                    res['grad_Te_prof_unc'].append(interp1d(lyares_fit['rhop'],lyares_fit['grad_Te_unc'],bounds_error=False)(rhop_vec))
+                    res['grad_pe_prof'].append(interp1d(lyares_fit['rhop'],lyares_fit['grad_pe'],bounds_error=False)(rhop_vec))
+                    res['grad_pe_prof_unc'].append(interp1d(lyares_fit['rhop'],lyares_fit['grad_pe_unc'],bounds_error=False)(rhop_vec))
+                    
                 res['R_prof'].append(interp1d(lyares_fit['rhop'],lyares_fit['R'],bounds_error=False)(rhop_vec))
                 res['rhop_prof'].append(rhop_vec)
                 
@@ -411,6 +412,23 @@ def run_db(res, windows, plot_kin=False, user_check=False):
         print(f'Time to create database: {t1 - t0} s')
 
     return res
+
+
+def write_db_shotlist(filename, shots, tmin, tmax):
+
+    with open(filename, 'w') as f:
+
+        f.write('Variables' + '\t' + 'shot' + '\t' + 't1' + '\t' + 't2' + '\n')
+        f.write('Type' + '\t' + 'Long' + '\t' + 'Float' +  '\t' + 'Float' + '\n')
+
+        for entry_idx in range(len(shots)):
+
+            shot_str = str(shots[entry_idx])
+            tmin_str = str(tmin[entry_idx])
+            tmax_str = str(tmax[entry_idx])
+
+            f.write('Data:' + '\t' +  shot_str + '\t' + tmin_str + '\t' + tmax_str + '\n')
+
 
 if __name__ == '__main__':
     res = main_db()

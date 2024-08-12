@@ -31,7 +31,9 @@ import data_access as da
 #~# This is the function that grabs the data and fits it - probably too big of a function and should break it down into chunks
 
 def get_cmod_kin_profs(shot, tmin, tmax, pre_shift_TS=False, force_to_zero=False, frac_err=True, num_mc=100,
-                       fit_type='osborne', apply_final_sep_stretch=False, core_ts_mult=False, edge_ts_mult=False, core_ts_factor=1, edge_ts_factor=1):
+                       fit_type='osborne', apply_final_sep_stretch=False,
+                       core_ts_mult=False, edge_ts_mult=False, core_ts_factor=1, edge_ts_factor=1,
+                       plot_fit=False):
     '''Function to load and fit modified-tanh functions to C-Mod ne and Te.
 
     This function is designed to be robust for operation within the construction of
@@ -291,12 +293,13 @@ def get_cmod_kin_profs(shot, tmin, tmax, pre_shift_TS=False, force_to_zero=False
     reg = [8] # these will determine which coefficients in the fit are set to zero to prevent overfitting
     reg2 = [7,8] # this should help cases that have shallower gradients
     edge_chi = True # this will use chisqr from the edge instead of the whole profile to evaluate goodness of fit
-    plot_fit = True # this will plot the best mtanh fit
 
     rhop_min_fit = 0 # if only want to fit to some portion of the data (i.e. only the pedestal for example)
     rhop_max_fit = 1.2 # the max value
 
     ped_width = 0.04 if mode == 'L' else 0.02 # used to fit
+        
+    deg_list = [1,2,3,4]
 
     # For now, the mtanh fitting is done independently of a fit used to find the separatrix - can ammend later to give one an option to use this to find the separatrix
     
@@ -332,13 +335,13 @@ def get_cmod_kin_profs(shot, tmin, tmax, pre_shift_TS=False, force_to_zero=False
 
     elif fit_type == 'polynomial':
 
-        _out_ne = fp.best_polyfit(p_ne.X[idxs_ne,0][mask_ne], p_ne.y[idxs_ne][mask_ne], vals_unc=p_ne.err_y[idxs_ne][mask_ne], x_out=rhop_kp, log=False, use_edge_chisqr=False, deg_list=[2,3,4])
-        _out_Te = fp.best_polyfit(p_Te.X[idxs_Te,0][mask_Te], p_Te.y[idxs_Te][mask_Te], vals_unc=p_Te.err_y[idxs_Te][mask_Te], x_out=rhop_kp, log=False, use_edge_chisqr=False, deg_list=[2,3,4])
+        _out_ne = fp.best_polyfit(p_ne.X[idxs_ne,0][mask_ne], p_ne.y[idxs_ne][mask_ne], vals_unc=p_ne.err_y[idxs_ne][mask_ne], x_out=rhop_kp, log=False, use_edge_chisqr=False, deg_list=deg_list)
+        _out_Te = fp.best_polyfit(p_Te.X[idxs_Te,0][mask_Te], p_Te.y[idxs_Te][mask_Te], vals_unc=p_Te.err_y[idxs_Te][mask_Te], x_out=rhop_kp, log=False, use_edge_chisqr=False, deg_list=deg_list)
 
     elif fit_type == 'exp_polynomial':
 
-        _out_ne = fp.best_polyfit(p_ne.X[idxs_ne,0][mask_ne], p_ne.y[idxs_ne][mask_ne], vals_unc=p_ne.err_y[idxs_ne][mask_ne], x_out=rhop_kp, log=True, use_edge_chisqr=True, deg_list=[2,3,4])
-        _out_Te = fp.best_polyfit(p_Te.X[idxs_Te,0][mask_Te], p_Te.y[idxs_Te][mask_Te], vals_unc=p_Te.err_y[idxs_Te][mask_Te], x_out=rhop_kp, log=True, use_edge_chisqr=True, deg_list=[2,3,4])
+        _out_ne = fp.best_polyfit(p_ne.X[idxs_ne,0][mask_ne], p_ne.y[idxs_ne][mask_ne], vals_unc=p_ne.err_y[idxs_ne][mask_ne], x_out=rhop_kp, log=True, use_edge_chisqr=True, deg_list=deg_list)
+        _out_Te = fp.best_polyfit(p_Te.X[idxs_Te,0][mask_Te], p_Te.y[idxs_Te][mask_Te], vals_unc=p_Te.err_y[idxs_Te][mask_Te], x_out=rhop_kp, log=True, use_edge_chisqr=True, deg_list=deg_list)
 
     else:
         raise ValueError('Requested fit type not yet implemented!')
@@ -423,15 +426,15 @@ def get_cmod_kin_profs(shot, tmin, tmax, pre_shift_TS=False, force_to_zero=False
 
     elif fit_type == 'polynomial':
         
-        _out_ne = fp.best_polyfit(p_ne.X[idxs_ne,0][mask_ne], p_ne.y[idxs_ne][mask_ne], vals_unc=p_ne.err_y[idxs_ne][mask_ne], x_out=rhop_kp, log=False, use_edge_chisqr=False, deg_list=[2,3,4])
-        _out_Te = fp.best_polyfit(p_Te.X[idxs_Te,0][mask_Te], p_Te.y[idxs_Te][mask_Te], vals_unc=p_Te.err_y[idxs_Te][mask_Te], x_out=rhop_kp, log=False, use_edge_chisqr=False, deg_list=[2,3,4])
-        _out_pe = fp.best_polyfit(p_pe.X[idxs_pe,0][mask_pe], p_pe.y[idxs_pe][mask_pe], vals_unc=p_pe.err_y[idxs_pe][mask_pe], x_out=rhop_kp, log=False, use_edge_chisqr=False, deg_list=[2,3,4])
+        _out_ne = fp.best_polyfit(p_ne.X[idxs_ne,0][mask_ne], p_ne.y[idxs_ne][mask_ne], vals_unc=p_ne.err_y[idxs_ne][mask_ne], x_out=rhop_kp, log=False, use_edge_chisqr=False, deg_list=deg_list)
+        _out_Te = fp.best_polyfit(p_Te.X[idxs_Te,0][mask_Te], p_Te.y[idxs_Te][mask_Te], vals_unc=p_Te.err_y[idxs_Te][mask_Te], x_out=rhop_kp, log=False, use_edge_chisqr=False, deg_list=deg_list)
+        _out_pe = fp.best_polyfit(p_pe.X[idxs_pe,0][mask_pe], p_pe.y[idxs_pe][mask_pe], vals_unc=p_pe.err_y[idxs_pe][mask_pe], x_out=rhop_kp, log=False, use_edge_chisqr=False, deg_list=deg_list)
 
     elif fit_type == 'exp_polynomial':
 
-        _out_ne = fp.best_polyfit(p_ne.X[idxs_ne,0][mask_ne], p_ne.y[idxs_ne][mask_ne], vals_unc=p_ne.err_y[idxs_ne][mask_ne], x_out=rhop_kp, log=True, use_edge_chisqr=True, deg_list=[2,3,4])
-        _out_Te = fp.best_polyfit(p_Te.X[idxs_Te,0][mask_Te], p_Te.y[idxs_Te][mask_Te], vals_unc=p_Te.err_y[idxs_Te][mask_Te], x_out=rhop_kp, log=True, use_edge_chisqr=True, deg_list=[2,3,4])
-        _out_pe = fp.best_polyfit(p_pe.X[idxs_pe,0][mask_pe], p_pe.y[idxs_pe][mask_pe], vals_unc=p_pe.err_y[idxs_pe][mask_pe], x_out=rhop_kp, log=True, use_edge_chisqr=True, deg_list=[2,3,4])
+        _out_ne = fp.best_polyfit(p_ne.X[idxs_ne,0][mask_ne], p_ne.y[idxs_ne][mask_ne], vals_unc=p_ne.err_y[idxs_ne][mask_ne], x_out=rhop_kp, log=True, use_edge_chisqr=True, deg_list=deg_list)
+        _out_Te = fp.best_polyfit(p_Te.X[idxs_Te,0][mask_Te], p_Te.y[idxs_Te][mask_Te], vals_unc=p_Te.err_y[idxs_Te][mask_Te], x_out=rhop_kp, log=True, use_edge_chisqr=True, deg_list=deg_list)
+        _out_pe = fp.best_polyfit(p_pe.X[idxs_pe,0][mask_pe], p_pe.y[idxs_pe][mask_pe], vals_unc=p_pe.err_y[idxs_pe][mask_pe], x_out=rhop_kp, log=True, use_edge_chisqr=True, deg_list=deg_list)
 
     else:
         raise ValueError('Requested fit type not yet implemented!')

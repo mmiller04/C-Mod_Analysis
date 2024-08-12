@@ -442,14 +442,14 @@ if __name__=='__main__':
     #tmax = 0.9
 
     # mid H98, high ne L-mode
-    #shot = 1070816013
-    #tmin = 1.0
-    #tmax = 1.1
+    shot = 1070816013
+    tmin = 1.0
+    tmax = 1.1
 
-    # test L-mode
-    shot = 1080304020
-    tmin = 1.4
-    tmax = 1.5
+    # test LDL
+    shot = 1090820011
+    tmin = 1.08
+    tmax = 1.1
 
     ############
     ne_min = 1e12 # cm^{-3}
@@ -466,7 +466,8 @@ if __name__=='__main__':
     # this is the call to grab TS data and fit it
     kp_out = get_cmod_kin_profs(shot, tmin, tmax,
                                            apply_final_sep_stretch=True, force_to_zero=force_to_zero, fit_type=fit_type,
-                                           frac_err=False, num_mc=num_mc, core_ts_mult=False, edge_ts_mult=False) 
+                                           frac_err=True, num_mc=num_mc, core_ts_mult=False, edge_ts_mult=False,
+                                           plot_fit=True) 
     f_ne, f_Te, f_pe, p_ne, p_Te, p_pe = kp_out
 
     kp_time = time.time()
