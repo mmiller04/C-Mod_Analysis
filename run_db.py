@@ -165,6 +165,7 @@ def run_db(res, windows, plot_kin=False, user_check=False):
     ftz = False
     t0 = _time.time()
 
+    data_dict = dict()
     for regime in windows:
         for shot in windows[regime]:
             for widx in windows[regime][shot]:
@@ -192,7 +193,7 @@ def run_db(res, windows, plot_kin=False, user_check=False):
                                                            frac_err=True, num_mc=5, 
                                                            core_ts_mult=False,
                                                            edge_ts_mult=False,
-                                                           plot_fit=False
+                                                           plot_fit=False,
                                                            prepost_filter=prepost_filter)
 
                     f_ne, f_Te, f_pe, p_ne, p_Te, p_pe  = kp_out
@@ -244,32 +245,23 @@ def run_db(res, windows, plot_kin=False, user_check=False):
                     res['regime'].append(regime)
                 res['ts_mult_factor'].append(mult_factor)
                 
-                # collect quantities from MDS
+                t,ddata,data_dict = da.get_CMOD_var_list(mds_vars,shot,data_dict)
                 for var in mds_vars:
-                    try:
-                        if var=='dWdt': # this is pretty dependent on the time slice you give it so give it a time slice
-                            ddata = da.get_CMOD_var(var=var,shot=shot,tmin=tmin,tmax=tmax,return_time=False)
-                            val = np.mean(ddata)
+                    if var=='ssep':
+                        # ~1 for USN, -1 for LSN, 0 are DN. Must carefully eliminate values of ~40 because they are spurious
+                        _val = ddata[np.argmin(np.abs(t-tmin)):np.argmin(np.abs(t-tmax))]
+                        mask_ssep = np.logical_and(_val<3, _val>-3)
+                        val = np.mean(_val[mask_ssep]) if len(_val[mask_ssep]) else np.nan
+                        # cases with np.nan are typically inner-wall limited plasmas!
+                    else:
+                        # simple mean
+                        if ddata is not None and np.any(~np.isnan(ddata)):
+                            val = np.mean(ddata[np.argmin(np.abs(t-tmin)):np.argmin(np.abs(t-tmax))])
                         else:
-                            t,ddata = da.get_CMOD_var(var=var,shot=shot,return_time=True)
-                            if var=='ssep':
-                                # ~1 for USN, -1 for LSN, 0 are DN. Must carefully eliminate values of ~40 because they are spurious
-                                _val = ddata[np.argmin(np.abs(t-tmin)):np.argmin(np.abs(t-tmax))]
-                                mask_ssep = np.logical_and(_val<3, _val>-3)
-                                val = np.mean(_val[mask_ssep]) if len(_val[mask_ssep]) else np.nan
-
-                                # cases with np.nan are typically inner-wall limited plasmas!
-                            else:
-                                # simple mean
-                                if ddata is not None and np.any(~np.isnan(ddata)):
-                                    val= np.mean(ddata[np.argmin(np.abs(t-tmin)):np.argmin(np.abs(t-tmax))])
-                                else:
-                                    val = np.nan
-                        res[var].append(val)
-                    except Exception as e:
-                        print(e)
-                        res[var].append(np.nan)
-
+                            val = np.nan
+                    res[var].append(val)
+            
+        
                 # get gas-puff rate and cumulative gas fueling
                 try:
                     gas_time, gas_tot = cmod_tools.get_CMOD_gas_fueling(shot, plot=False) #Torr-l

@@ -1478,6 +1478,160 @@ def get_CMOD_var(var,shot, tmin=None, tmax=None, plot=False, return_time=False):
         else:
             return data
 
+
+def get_CMOD_var_list(var_list,shot, data_dict):
+    ''' Get tree variable for a CMOD shot. If a time window is given, the value averaged over that window is returned,
+    or else the time series is given.  See list below for acceptable input variables.
+    '''
+
+    if shot in data_dict.keys():
+        magnetics = data_dict[shot]['magnetics']
+        analysis = data_dict[shot]['analysis']
+        electrons = data_dict[shot]['electrons']
+        RF = data_dict[shot]['RF']
+        spectroscopy = data_dict[shot]['spectroscopy']
+        edge = data_dict[shot]['edge']
+    else:
+        magnetics = MDSplus.Tree('magnetics', shot) 
+        analysis = MDSplus.Tree('analysis', shot)
+        electrons = MDSplus.Tree('electrons', shot)
+        RF = MDSplus.Tree('RF', shot)
+        spectroscopy = MDSplus.Tree('spectroscopy', shot)
+        edge = MDSplus.Tree('edge', shot)
+
+        data_dict[shot] = dict()
+        data_dict[shot]['magnetics'] = magnetics
+        data_dict[shot]['analysis'] = analysis
+        data_dict[shot]['electrons'] = electrons
+        data_dict[shot]['RF'] = RF
+        data_dict[shot]['spectroscopy'] = spectroscopy
+        data_dict[shot]['edge'] = edge
+
+    for var in var_list:
+        if var=='Bt':
+            data_dict[shot][var] = magnetics.getNode('\\magnetics::Bt')
+        elif var=='Bp':
+            # use Bpolav, average poloidal B field --> see definition in Silvagni NF 2020
+            data_dict[shot][var] = analysis.getNode('\\EFIT_AEQDSK:bpolav')
+        elif var=='Ip':
+            data_dict[shot][var] = magnetics.getNode('\\magnetics::Ip')
+        elif var=='nebar':
+            data_dict[shot][var] = electrons.getNode('\\electrons::top.tci.results:nl_04')
+        elif var=='P_RF':
+            data_dict[shot][var] = RF.getNode('\\RF::RF_power_net')
+        elif var=='P_rad_main':
+            try: 
+                data_dict[shot][var] = spectroscopy.getNode('\\spectroscopy::top.bolometer:results:foil:main_power')
+            except:
+                data_dict[shot][var] = None
+        elif var=='P_rad_diode':
+            data_dict[shot][var] = spectroscopy.getNode('\\spectroscopy::top.bolometer:twopi_diode')
+        elif var=='p_D2':
+            data_dict[shot][var] = edge.getNode('\\edge::top.gas.ratiomatic.f_side')
+        elif var=='p_E_BOT_MKS':
+            data_dict[shot][var] = edge.getNode('\\edge::e_bot_mks')
+        elif var=='p_B_BOT_MKS':
+            data_dict[shot][var] = edge.getNode('\\edge::b_bot_mks')
+        elif var=='p_F_CRYO_MKS':
+            try: 
+                data_dict[shot][var] = edge.getNode('\\edge::f_cryo_mks')
+            except:
+                data_dict[shot][var] = None
+        elif var=='p_G_SIDE_RAT':
+            data_dict[shot][var] = edge.getNode('\\edge::g_side_rat')
+        elif var=='q95':
+            data_dict[shot][var] = analysis.getNode('\\efit_aeqdsk:qpsib')
+        elif var=='Wmhd':
+            data_dict[shot][var] = analysis.getNode('\\efit_aeqdsk:wplasm')
+        elif var=='dWdt':
+            t,data = get_dWdt(shot, tmin=tmin, tmax=tmax)   # tries to fit Wmhd and get gradient
+        elif var=='areao':
+            data_dict[shot][var] = analysis.getNode('\\efit_aeqdsk:areao')
+        elif var=='betat':
+            data_dict[shot][var] = analysis.getNode('\\efit_aeqdsk:betat')
+        elif var=='betap':
+            data_dict[shot][var] = analysis.getNode('\\efit_aeqdsk:betap')
+        elif var=='P_oh':
+            t,data = get_P_ohmic(shot)   # accurate routine to estimate Ohmic power
+        elif var=='li':
+            data_dict[shot][var] = analysis.getNode('\\efit_aeqdsk:ali')
+        elif var=='h_alpha':
+            data_dict[shot][var] = spectroscopy.getNode('\\ha_2_bright')
+        elif var=='cryo_on':
+            data_dict[shot][var] = edge.getNode('\\edge::top.cryopump:message')
+        elif var=='ssep':
+            data_dict[shot][var] = analysis.getNode('\\efit_aeqdsk:ssep')
+        elif var=='Lgap':
+            data_dict[shot][var] = analysis.getNode('\\efit_aeqdsk:oleft')
+        elif var=='Rgap':
+            data_dict[shot][var] = analysis.getNode('\\efit_aeqdsk:oright')
+        elif var=='kappa':
+            data_dict[shot][var] = analysis.getNode('\\efit_aeqdsk:eout')
+        elif var=='Udelta':
+            data_dict[shot][var] = analysis.getNode('\\efit_aeqdsk:doutu')
+        elif var=='Ldelta':
+            data_dict[shot][var] = analysis.getNode('\\efit_aeqdsk:doutl')
+        else:
+            raise ValueError('Variable '+var+' was not recognized!')
+
+
+        if var not in ['P_oh','dWdt', 'P_rad_main']:
+
+            if data_dict[shot][var] is not None: 
+                data = data_dict[shot][var].data()
+                t = data_dict[shot][var].dim_of(0).data()
+
+                if var=='p_E_BOT_MKS' or var=='p_B_BOT_MKS' or var=='p_F_CRYO_MKS':  # anomalies in data storage
+                    if data is not None:
+                        data = data[0,:]
+            else:
+                t,data = np.nan, np.nan
+        
+        if var=='P_rad_diode':
+            #if radvar == 'main', no need to scale
+            if data is not None:
+                # From B.Granetz's matlab scripts: factor of 4.5 from cross-calibration with 2pi_foil during flattop
+                # NB: Bob's scripts mention that this is likely not accurate when p_rad (uncalibrated) <= 0.5 MW
+                #data *= 4.5
+                data *= 3 # suggestion by JWH
+                # data from the twopi_diode is output in kW. Change to MW for consistency
+                data /= 1e3
+        if var=='P_rad_main':
+            # if radvar == 'main', just need to convert to MW
+            try:
+                data /= 1e6
+            except:
+                print('No P_rad_main')
+
+        if var=='nebar':
+            # nl needs to be divided by the chord length
+            node_l = analysis.getNode('\\efit_aeqdsk:rco2v')
+
+            try:
+                l04_m = node_l.data()[:,3]/1e2 # 4th channel, convert cm to m
+                t_l04 = node_l.dim_of(1).data()
+
+                # need to interpolate onto nl04 timebase
+                from scipy.interpolate import interp1d
+                l04_m_tb = interp1d(t_l04, l04_m, bounds_error=False, fill_value='extrapolate')(t)
+           
+                zero_inds = np.where(l04_m_tb == 0)[0]
+                l04_m_tb[zero_inds] = 1e-10 # dummy to avoid error
+
+                if len(data.shape) > 1: # error catcher
+                    data = data[:,0]
+                data /= l04_m_tb # nl04/l04
+            except:
+                print('ne_l or chord length not available')
+                t, data = np.nan, np.nan
+        
+        if var=='ssep':
+            mask_ssep = np.logical_and(data<3, data>-3)
+            data = data[mask_ssep]
+
+    return t, data, data_dict
+
+
 def get_P_ohmic(shot):
     ''' Get Ohmic power
 
