@@ -596,19 +596,24 @@ def get_cmod_kin_profs(shot, tmin, tmax, pre_shift_TS=False, force_to_zero=False
         if plot_fit:
 
             fig, ax = plt.subplots(2, sharex=True)
-            ax[0].errorbar(p_ne.X[:,0], p_ne.y, yerr=p_ne.err_y, fmt='o', label='raw')
-            ax[0].plot(f_ne.x, f_ne.y, lw=2.5, label='single fit')
-            ax[0].plot(f_ne.x, f_ne.fit_mean, lw=2.5, label='MC mean fit')
+            ax[1].errorbar(p_ne_pf.X[:,0], p_ne_pf.y, yerr=p_ne_pf.err_y, fmt='o', label='discarded', mfc='w', c='C3',zorder=0)
+            ax[1].errorbar(p_ne.X[:,0], p_ne.y, yerr=p_ne.err_y, fmt='o', label='retained', mfc='w', c='C0',zorder=0)
+            ax[1].plot(f_ne.x, f_ne.y, lw=2.5, label='single fit', c='C1',zorder=1)
+            ax[1].plot(f_ne.x, f_ne.fit_mean, lw=2, ls='--', label='MC mean fit', c='C5',zorder=1)
 
-            ax[1].errorbar(p_Te.X[:,0], p_Te.y, yerr=p_Te.err_y, fmt='o')
-            ax[1].plot(f_Te.x, f_Te.y, lw=2.5)
-            ax[1].plot(f_Te.x, f_Te.fit_mean, lw=2.5)
+            ax[0].errorbar(p_Te_pf.X[:,0], p_Te_pf.y, yerr=p_Te_pf.err_y, fmt='o', mfc='w', c='C3',zorder=0)
+            ax[0].errorbar(p_Te.X[:,0], p_Te.y, yerr=p_Te.err_y, fmt='o', mfc='w', c='C0',zorder=0)
+            ax[0].plot(f_Te.x, f_Te.y, lw=2.5, c='C1',zorder=1)
+            ax[0].plot(f_Te.x, f_Te.fit_mean, lw=2, ls='--', c='C5',zorder=1)
 
-            ax[0].legend(loc='best', fontsize=14)
+            ax[1].legend(loc='best', fontsize=14)
 
-            ax[1].set_xlabel('$\\rho_{p}$')
-            ax[0].set_ylabel('$n_{e} (10^{20} m^{-3})$')
-            ax[1].set_ylabel('$T_{e} (eV)$')
+            ax[1].set_xlabel('$\\rho_{p}$', fontsize=14)
+            ax[1].set_ylabel('$n_{e} (10^{20} m^{-3})$', fontsize=14)
+            ax[0].set_ylabel('$T_{e} (eV)$', fontsize=14)
+
+            ax[0].tick_params(axis='both', labelsize=14)
+            ax[1].tick_params(axis='both', labelsize=14)
 
 
     ###############################################

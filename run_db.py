@@ -19,12 +19,13 @@ import time as _time
 
 # set variables to create database in your own directory 
 data_loc = '/home/millerma/thomson_separatrix/shotlists/'
-db_filestem = 'test_full_shot'
+db_filestem = 'test_database'
 regime = 'any'
-each_thomson = True
-reduced_outputs = True
+each_thomson = False
+reduced_outputs = False
 fit_type = 'osborne' #omfit_mtanh, polynomial, exp_polynomial
-prepost_filter = False
+prepost_filter = True
+convert_to_csv = True
 
 ##########################################################
 
@@ -156,6 +157,10 @@ def main_db():
     with open(db_filestem+'.pkl', 'wb') as f:
         pkl.dump(res,f)    
 
+    if convert_to_csv:
+        write_to_csv(res, db_filestem)
+
+    return res
 
 
 def run_db(res, windows, plot_kin=False, user_check=False):
@@ -245,7 +250,7 @@ def run_db(res, windows, plot_kin=False, user_check=False):
                     res['regime'].append(regime)
                 res['ts_mult_factor'].append(mult_factor)
                 
-                t,ddata,data_dict = da.get_CMOD_var_list(mds_vars,shot,data_dict)
+                t,ddata,data_dict = da.get_CMOD_var_list(mds_vars,shot,tmin,tmax,data_dict)
                 for var in mds_vars:
                     if var=='ssep':
                         # ~1 for USN, -1 for LSN, 0 are DN. Must carefully eliminate values of ~40 because they are spurious
@@ -424,6 +429,44 @@ def write_db_shotlist(filename, shots, tmin, tmax):
 
             f.write('Data:' + '\t' +  shot_str + '\t' + tmin_str + '\t' + tmax_str + '\n')
 
+
+def write_to_csv(res, db_filestem):
+    
+    len_db = len(res['shot'])    
+    
+    res_csv = dict()
+
+    res_csv['machine'] = ['C-Mod']*len_db
+    res_csv['config'] = np.array(['LSN' if ssep < 0 else 'USN' for ssep in res['ssep']])
+    res_csv['pulse_no'] = res['shot']
+    res_csv['t_start'] = res['tmin']
+    res_csv['t_end'] = res['tmax']
+    res_csv['W_mhd'] = res['Wmhd']
+    res_csv['P_aux'] = res['P_RF']
+    res_csv['P_oh'] = res['P_oh']
+    res_csv['P_rad_bulk'] = np.array([res['P_rad_main'][db] if ~np.isnan(res['P_rad_main'][db]) else res['P_rad_diode'][db] for db in range(len_db)])
+    res_csv['Surface'] = res['area_LCFS']
+    res_csv['I_p'] = res['Ip']/1e6
+    res_csv['Bt'] = res['Bt']
+    res_csv['R_geo'] = res['R_geo']
+    res_csv['a_geo'] = res['a_geo']
+    res_csv['kappa'] = res['kappa']
+    res_csv['delta'] = (res['Udelta'] + res['Ldelta'])/2
+    res_csv['q95'] = res['q95']
+    res_csv['ne_line'] = res['nebar']/1e19
+    res_csv['li'] = res['li']
+    res_csv['B_pol_sep_OMP'] = res['Bp_OMP']
+
+    res_csv['dW_dt'] = res['dWdt']*1e6
+    res_csv['p0_div'] = res['p_B_BOT_MKS']*133.322
+
+    for c in range(9):
+        res_csv['C{}_n'.format(c)] = res['ne_fit_coefs'][:,c]
+        res_csv['C{}_T'.format(c)] = res['Te_fit_coefs'][:,c]
+
+    import pandas as pd
+    df = pd.DataFrame(res_csv)
+    df.to_csv(r'{}.csv'.format(db_filestem))
 
 if __name__ == '__main__':
     res = main_db()

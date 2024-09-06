@@ -427,9 +427,9 @@ if __name__=='__main__':
     ##### SHOT INFO #####
 
     # record pressure shot
-    shot = 1160930033
-    tmin = 1.1
-    tmax = 1.2
+#    shot = 1160930033
+#    tmin = 1.1
+#    tmax = 1.2
 
     # high H98 L-mode
     #shot = 1070803016
@@ -442,14 +442,25 @@ if __name__=='__main__':
     #tmax = 0.9
 
     # mid H98, high ne L-mode
-    shot = 1070816013
-    tmin = 1.0
-    tmax = 1.1
+#    shot = 1070816013
+#    tmin = 1.0
+#    tmax = 1.1
 
     # test LDL
     shot = 1090820011
-    tmin = 1.08
+    tmin = 1.0
     tmax = 1.1
+
+    # USN I-modes
+#    shot = 1110215014
+#    tmin = 0.85
+#    tmax = 0.99
+
+    # test H-mode
+#    shot = 1120829009
+#    tmin = 0.92
+#    tmax = 1.0
+
 
     ############
     ne_min = 1e12 # cm^{-3}
@@ -458,7 +469,7 @@ if __name__=='__main__':
     force_to_zero = True # helps constrain fits if there's not good SOL coverage
     num_mc = 5 # to estimate fitting error - can probably speed this up jamie's method of repassing
                # in fit parameters into new iteration and vectorizing
-    fit_type = 'polynomial' #osborne, omfit_mtanh, polynomial, exp_polynomial
+    fit_type = 'osborne' #osborne, omfit_mtanh, polynomial, exp_polynomial
  
     import time
     start_time = time.time()
@@ -466,7 +477,7 @@ if __name__=='__main__':
     # this is the call to grab TS data and fit it
     kp_out = get_cmod_kin_profs(shot, tmin, tmax,
                                            apply_final_sep_stretch=True, force_to_zero=force_to_zero, fit_type=fit_type,
-                                           frac_err=True, num_mc=num_mc, core_ts_mult=False, edge_ts_mult=False,
+                                           frac_err=False, num_mc=num_mc, core_ts_mult=False, edge_ts_mult=False,
                                            plot_fit=True) 
     f_ne, f_Te, f_pe, p_ne, p_Te, p_pe = kp_out
 

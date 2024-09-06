@@ -1479,7 +1479,7 @@ def get_CMOD_var(var,shot, tmin=None, tmax=None, plot=False, return_time=False):
             return data
 
 
-def get_CMOD_var_list(var_list,shot, data_dict):
+def get_CMOD_var_list(var_list,shot,tmin,tmax, data_dict):
     ''' Get tree variable for a CMOD shot. If a time window is given, the value averaged over that window is returned,
     or else the time series is given.  See list below for acceptable input variables.
     '''
