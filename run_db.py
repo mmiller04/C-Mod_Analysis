@@ -12,7 +12,6 @@ import single_shot, cmod_tools
 import power_balance as pb
 import data_access as da
 from scipy.optimize import curve_fit
-from omfit_classes.omfit_mds import OMFITmdsValue
 import time as _time
 
 ################################################################
@@ -170,7 +169,6 @@ def run_db(res, windows, plot_kin=False, user_check=False):
     ftz = False
     t0 = _time.time()
 
-    data_dict = dict()
     for regime in windows:
         for shot in windows[regime]:
             for widx in windows[regime][shot]:
@@ -250,23 +248,32 @@ def run_db(res, windows, plot_kin=False, user_check=False):
                     res['regime'].append(regime)
                 res['ts_mult_factor'].append(mult_factor)
                 
-                t,ddata,data_dict = da.get_CMOD_var_list(mds_vars,shot,tmin,tmax,data_dict)
                 for var in mds_vars:
-                    if var=='ssep':
-                        # ~1 for USN, -1 for LSN, 0 are DN. Must carefully eliminate values of ~40 because they are spurious
-                        _val = ddata[np.argmin(np.abs(t-tmin)):np.argmin(np.abs(t-tmax))]
-                        mask_ssep = np.logical_and(_val<3, _val>-3)
-                        val = np.mean(_val[mask_ssep]) if len(_val[mask_ssep]) else np.nan
-                        # cases with np.nan are typically inner-wall limited plasmas!
-                    else:
-                        # simple mean
-                        if ddata is not None and np.any(~np.isnan(ddata)):
-                            val = np.mean(ddata[np.argmin(np.abs(t-tmin)):np.argmin(np.abs(t-tmax))])
+                    try:
+                        if var=='dWdt':
+                            ddata = da.get_CMOD_var(var=var,shot=shot,tmin=tmin,tmax=tmax,return_time=False)
                         else:
-                            val = np.nan
-                    res[var].append(val)
-            
-        
+                            # simple mean
+                            t,ddata = da.get_CMOD_var(var=var,shot=shot,return_time=True)
+                            if var=='ssep':
+                                # ~1 for USN, -1 for LSN, 0 are DN. Must carefully eliminate values of ~40 because they are spurious
+                                _val = ddata[np.argmin(np.abs(t-tmin)):np.argmin(np.abs(t-tmax))]
+                                mask_ssep = np.logical_and(_val<3, _val>-3)
+                                val = np.mean(_val[mask_ssep]) if len(_val[mask_ssep]) else np.nan
+    
+                            # cases with np.nan are typically inner-wall limited plasmas!
+                            else:
+                                # simple mean
+                                if ddata is not None and np.any(~np.isnan(ddata)):
+                                    val = np.mean(ddata[np.argmin(np.abs(t-tmin)):np.argmin(np.abs(t-tmax))])
+                                else:
+                                    val = np.nan
+                        res[var].append(val)
+                    except Exception as e:
+                        print(e)
+                        res[var].append(np.nan)
+       
+ 
                 # get gas-puff rate and cumulative gas fueling
                 try:
                     gas_time, gas_tot = cmod_tools.get_CMOD_gas_fueling(shot, plot=False) #Torr-l
@@ -437,6 +444,7 @@ def write_to_csv(res, db_filestem):
     res_csv = dict()
 
     res_csv['machine'] = ['C-Mod']*len_db
+    res_csv['regime'] = res['regime']
     res_csv['config'] = np.array(['LSN' if ssep < 0 else 'USN' for ssep in res['ssep']])
     res_csv['pulse_no'] = res['shot']
     res_csv['t_start'] = res['tmin']
@@ -445,11 +453,8 @@ def write_to_csv(res, db_filestem):
     res_csv['P_aux'] = res['P_RF']
     res_csv['P_oh'] = res['P_oh']
     res_csv['P_rad_bulk'] = np.array([res['P_rad_main'][db] if ~np.isnan(res['P_rad_main'][db]) else res['P_rad_diode'][db] for db in range(len_db)])
-    res_csv['Surface'] = res['area_LCFS']
     res_csv['I_p'] = res['Ip']/1e6
     res_csv['Bt'] = res['Bt']
-    res_csv['R_geo'] = res['R_geo']
-    res_csv['a_geo'] = res['a_geo']
     res_csv['kappa'] = res['kappa']
     res_csv['delta'] = (res['Udelta'] + res['Ldelta'])/2
     res_csv['q95'] = res['q95']
