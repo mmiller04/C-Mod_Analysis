@@ -27,7 +27,7 @@ Verify it is installed by doing `poetry --version`. It should say 1.8.3
 1. Install repo
 
 ```
-git clone https://github.com/mmiller04/C-Mod_Analysis.git`
+git clone https://github.com/mmiller04/C-Mod_Analysis.git
 cd C-Mod_Analysis
 poetry env use /usr/bin/python
 poetry env info # ensure this is /usr/bin/python
