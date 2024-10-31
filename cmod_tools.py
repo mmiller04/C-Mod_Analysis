@@ -445,6 +445,12 @@ def get_cmod_kin_profs(shot, tmin, tmax, pre_shift_TS=False, force_to_zero=False
     Te, Te_popt, Te_perr, Te_chisqr = _out_Te
     pe, pe_popt, pe_perr, pe_chisqr = _out_pe
 
+    print('Fit coefficients chosen for fit type: {}'.format(fit_type))
+    print('For ne: {}'.format(ne_popt))
+    print('For Te: {}'.format(Te_popt))
+    print('For pe: {}'.format(pe_popt))
+
+
     # Shift profiles if shift_profiles is set to True
     if shift_profiles:
         xSep_TS = pb.shift_profs([1],rhop_kp,Te[None,:]*1e3,Te_LCFS=Te_sep_eV)
