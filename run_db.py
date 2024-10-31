@@ -18,8 +18,9 @@ import time as _time
 
 # set variables to create database in your own directory 
 data_loc = '/home/millerma/thomson_separatrix/shotlists/'
-db_filestem = 'test_database'
+db_filestem = 'test_db_imode'
 regime = 'any'
+force_to_zero = True
 each_thomson = False
 reduced_outputs = False
 fit_type = 'osborne' #omfit_mtanh, polynomial, exp_polynomial
@@ -166,7 +167,6 @@ def run_db(res, windows, plot_kin=False, user_check=False):
     # create database on all (or num_windows) 100-ms-long time windows
 
     curr_window = 0
-    ftz = False
     t0 = _time.time()
 
     for regime in windows:
@@ -191,7 +191,8 @@ def run_db(res, windows, plot_kin=False, user_check=False):
 
                 try:
                     kp_out = cmod_tools.get_cmod_kin_profs(shot,tmin,tmax,
-                                                           apply_final_sep_stretch=False, force_to_zero=ftz,
+                                                           apply_final_sep_stretch=False, 
+                                                           force_to_zero=force_to_zero,
                                                            fit_type=fit_type,
                                                            frac_err=True, num_mc=5, 
                                                            core_ts_mult=False,
