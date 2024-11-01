@@ -22,7 +22,7 @@ export PYTHON_KEYRING_BACKEND=keyring.backends.null.Keyring
 To submit updates
 `source ~/.bashrc`
 
-Verify it is installed by doing `poetry --version`. It should say 1.8.3
+Verify it is installed by doing `poetry --version`. It should say 1.8.3 or 1.8.4
 
 1. Install repo
 
