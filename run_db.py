@@ -148,7 +148,10 @@ def main_db():
 
     # turn them into arrays to store them
     for field in res:
-        res[field] = np.array(res[field])
+        try:
+            res[field] = np.array(res[field])
+        except:
+            res[field] = np.array(res[field], dtype=object)
     
     num_windows_to_store = len(res['shot'])
     print('Requested {} windows - storing {} windows'.format(win, num_windows_to_store))
