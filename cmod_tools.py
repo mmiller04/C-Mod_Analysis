@@ -33,7 +33,8 @@ import data_access as da
 def get_cmod_kin_profs(shot, tmin, tmax, pre_shift_TS=False, force_to_zero=False, frac_err=True, num_mc=100,
                        fit_type='osborne', apply_final_sep_stretch=False,
                        core_ts_mult=False, edge_ts_mult=False, core_ts_factor=1, edge_ts_factor=1,
-                       plot_fit=False, prepost_filter=True):
+                       plot_fit=False, prepost_filter=True,
+                       lambdaq_type='profile', sub_type='log_linear'):
     '''Function to load and fit modified-tanh functions to C-Mod ne and Te.
 
     This function is designed to be robust for operation within the construction of
@@ -149,10 +150,10 @@ def get_cmod_kin_profs(shot, tmin, tmax, pre_shift_TS=False, force_to_zero=False
 
     #####################################
 
-    try: # EFIT20 only exists for shots from certain years
-        e = da.CModEFITTree(int(shot), tree='EFIT20', length_unit='m')
-    except:
-        e = da.CModEFITTree(int(shot), tree='analysis', length_unit='m')
+#    try: # EFIT20 only exists for shots from certain years
+#        e = da.CModEFITTree(int(shot), tree='EFIT20', length_unit='m')
+#    except:
+    e = da.CModEFITTree(int(shot), tree='analysis', length_unit='m')
                 
     # If want to apply a calibration to ne data from TS against TCI
     if (core_ts_mult & (core_ts_factor == 1)) or (edge_ts_mult & (edge_ts_factor == 1)):
@@ -176,7 +177,6 @@ def get_cmod_kin_profs(shot, tmin, tmax, pre_shift_TS=False, force_to_zero=False
     except MDSplus.TreeNODATA:
         raise ValueError('No edge Thomson data!')
   
-    
     ## This gets triggered sometimes and I'm not quite sure what the use is
 
     try:
@@ -234,7 +234,6 @@ def get_cmod_kin_profs(shot, tmin, tmax, pre_shift_TS=False, force_to_zero=False
     R_ne = e.rho2rho('sqrtpsinorm', 'Rmid', p_ne.X[:,0], (tmin + tmax)/2)
     R_Te = e.rho2rho('sqrtpsinorm', 'Rmid', p_Te.X[:,0], (tmin + tmax)/2)
 
-
     # Save the raw points before filters to points are applied 
 
     ne_X_nofilters = p_ne.X[:,0]
@@ -245,6 +244,7 @@ def get_cmod_kin_profs(shot, tmin, tmax, pre_shift_TS=False, force_to_zero=False
     Te_Y_nofilters = p_Te.y
     Te_unc_Y_nofilters = p_Te.err_y
 
+
     ##########################################
 
     ### choose how to deal with separatrix ###
@@ -252,12 +252,12 @@ def get_cmod_kin_profs(shot, tmin, tmax, pre_shift_TS=False, force_to_zero=False
     ##########################################
 
 
-    shift_profiles = False # this will not shift profiles at all
-
-    lambdaq_type = 'scaling' # profile
-    sub_type = 'brunner' #'eich' for 'scaling'; 'log_linear', 'log_quadaratic', 'tanh', etc. for 'profile'
- 
-
+    shift_profiles = True # this will not shift profiles at all
+#    lambdaq_type = 'profile' # 'scaling'
+#    sub_type = 'log_linear' #'eich' for 'scaling'; 'log_linear', 'log_quadaratic', 'tanh', etc. for 'profile'
+    prefer_pradmain = True 
+    delta_T_threshold = 2
+    
     # Choose which type of scaling to use for power balance
 
     if lambdaq_type == 'scaling':
@@ -271,16 +271,25 @@ def get_cmod_kin_profs(shot, tmin, tmax, pre_shift_TS=False, force_to_zero=False
             print('Eich Te LCFS eV', Te_sep_eV)
 
 
-    elif lambda_qtype == 'profile':
+    elif lambdaq_type == 'profile':
 
         # will need to make a dictionary with parameters from shot that are needed in 2pt model    
 
+        p_pe = create_pe(p_ne, p_Te)
+        R_pe = e.rho2rho('sqrtpsinorm', 'Rmid', p_pe.X[:,0], (tmin + tmax)/2)
+        
         sep_dict = assemble_dict_for_2pm(shot, tmin, tmax,
                                             p_ne.X[:,0], R_ne, p_ne.y, p_ne.err_y,
-                                            p_Te.X[:,0], R_Te, p_Te.y, p_Te.err_y)
+                                            p_Te.X[:,0], R_Te, p_Te.y, p_Te.err_y,
+                                            p_pe.X[:,0], R_pe, p_pe.y, p_pe.err_y,
+                                            prefer_pradmain=prefer_pradmain)
 
-        Te_sep_eV, lam_q_mm = pb.find_separatrix(sep_dict, fit_type=sub_type, plot=True)
+        Te_sep_eV, lam_q_mm = pb.find_separatrix(sep_dict, fit_type=sub_type, delta_T_threshold=delta_T_threshold, verbose=True, plot=False)
         print('Profile Te LCFS eV', Te_sep_eV)
+
+        if np.isnan(Te_sep_eV):
+            print('Could not determine Te_sep - will not shift profiles')
+            shift_profiles = False
 
 
     #####################################
@@ -450,7 +459,6 @@ def get_cmod_kin_profs(shot, tmin, tmax, pre_shift_TS=False, force_to_zero=False
     print('For Te: {}'.format(Te_popt))
     print('For pe: {}'.format(pe_popt))
 
-
     # Shift profiles if shift_profiles is set to True
     if shift_profiles:
         xSep_TS = pb.shift_profs([1],rhop_kp,Te[None,:]*1e3,Te_LCFS=Te_sep_eV)
@@ -504,7 +512,7 @@ def get_cmod_kin_profs(shot, tmin, tmax, pre_shift_TS=False, force_to_zero=False
 
     # Do the same for the fits - will be especially useful for calculating errors using the bootsrapping technique
     f_ne = kinetic_profile(rhop_kp, ne, grad_ne, shot, tmin, tmax)
-    f_Te = kinetic_profile(rhop_kp, Te, grad_Te, shot, tmin, tmax)
+    f_Te = kinetic_profile(rhop_kp, Te, grad_Te, shot, tmin, tmax, sep=Te_sep_eV)
     f_pe = kinetic_profile(rhop_kp, pe, grad_pe, shot, tmin, tmax)
 
 
@@ -645,7 +653,6 @@ def get_cmod_kin_profs(shot, tmin, tmax, pre_shift_TS=False, force_to_zero=False
 
     # Create a pressure object in case there is interest in returning the filtered raw data, rather than the unfiltered (current setting)
     p_pe = create_pe(p_ne, p_Te)  
-
 
     if plot_fit:
         p_ne_pf.plot_data()
@@ -860,7 +867,10 @@ def create_pe(p_ne, p_Te):
  
     pe_X = np.array(template_X)[sort_template]
     pe_y = np.array(template_y)[sort_template]*np.array(check_y)[sort_check]
-    pe_err_y = np.sqrt(np.array(template_err_y)[sort_template]**2 + np.array(check_err_y)[sort_check]**2)
+
+    temp_term = (np.array(template_err_y)/np.array(template_y))[sort_template]
+    check_term = (np.array(check_err_y)/np.array(check_y))[sort_check]
+    pe_err_y = pe_y*np.sqrt(temp_term**2 + check_term**2)
 
     pe = da.BivariatePlasmaProfile(X_dim=1,
                                                 X_units=[''],
@@ -901,17 +911,23 @@ def build_profile_prefilter(X, y, y_err, kp):
 def assemble_dict_for_2pm(shot, tmin, tmax,
                             ne_rhop, ne_R, ne, ne_unc,
                             Te_rhop, Te_R, Te, Te_unc,
-                            prefer_pradmain):
+                            pe_rhop, pe_R, pe, pe_unc,
+                            prefer_pradmain=True):
+
+    sep_dict = dict()
 
     sep_dict['ne_R'] = ne_R
     sep_dict['Te_R'] = Te_R
+    sep_dict['pe_R'] = pe_R
 
     sep_dict['ne_raw'] = ne*1e14 # in cm^-3
     sep_dict['Te_raw'] = Te*1e3 # in eV
+    sep_dict['pe_raw'] = pe*1e3 # in Pa
     
     sep_dict['ne_raw_unc'] = ne_unc*1e14 # in cm^-3
     sep_dict['Te_raw_unc'] = Te_unc*1e3 # in eV
-   
+    sep_dict['pe_raw_unc'] = pe_unc*1e3 # in Pa
+
     # Find the separatrix position by interpolating onto the rho_poloidal grid
     # Note: this likely does not need to be super precise since it will just be a guess given to the separatrix finder used later
     sep_dict['R_sep'] = interp1d(ne_rhop, ne_R)(1)
@@ -976,8 +992,6 @@ def assemble_dict_for_2pm(shot, tmin, tmax,
     else:
         P_rad_diode = np.nan
 
-    prefer_pradmain = True # should be able to be switched
-
     if prefer_pradmain:
         P_rad = P_rad_main
 
@@ -992,8 +1006,8 @@ def assemble_dict_for_2pm(shot, tmin, tmax,
         P_rad = P_rad_diode
         print('Using P_rad_diode')
 
-
-    sep_dict['P_net'] = P_oh + P_RF - dWdt - P_rad
+    #sep_dict['P_net'] = P_oh + P_RF + dWdt - P_rad
+    sep_dict['P_net'] = P_oh + P_RF - P_rad
 
     return sep_dict
 
@@ -1282,7 +1296,7 @@ class kinetic_profile:
 
     # small class to store results from fits so that we can do monte carlo error estimation more easily
     
-    def __init__(self, x, y, grad_y, shot, tmin, tmax):
+    def __init__(self, x, y, grad_y, shot, tmin, tmax, sep=None):
 
         self.x = x
         self.y = y
@@ -1290,6 +1304,7 @@ class kinetic_profile:
         self.shot = shot
         self.tmin = tmin
         self.tmax = tmax
+        self.sep = sep
 
     def fetch_equilibrium(self):
 

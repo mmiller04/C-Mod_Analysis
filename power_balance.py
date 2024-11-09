@@ -237,7 +237,7 @@ def shift_profs(time_vec, r_vec, Te, Te_LCFS=75.0):
 
 
 # This is the wrapper for the 2-point model and is used when want to use the Te profile for lambda_q
-def find_separatrix(res, fit_type='log_linear', delta_T_threshold=None, plot=False, plot_ind=None):
+def find_separatrix(res, fit_type='log_linear', delta_T_threshold=None, verbose=True, plot=False):
     
     '''
 
@@ -246,9 +246,19 @@ def find_separatrix(res, fit_type='log_linear', delta_T_threshold=None, plot=Fal
     '''
 
     # begin by deciding to exclude points below certain values #
+
+    Te_min = 10 # in eV
+    ne_min = 0.01 # in 10^{20}m^{-3}
+    pe_min = 1.602 # in Pa
+
     Te_gt_floor = (res['Te_raw'] > 20)
     ne_gt_floor = (res['ne_raw'] > 1e12)
-    #pe_gt_floor = (res['pe_raw'] > 1.602)
+    pe_gt_floor = (res['pe_raw'] > 1.602)
+
+    # these will be used later when deciding whether a separatrix value is physical
+    Te_max = 300
+    ne_max = 10
+    pe_max = 10e3    
 
     # assing the values from the dictionary to more easily read variables
     Te = res['Te_raw'][Te_gt_floor]
@@ -258,20 +268,15 @@ def find_separatrix(res, fit_type='log_linear', delta_T_threshold=None, plot=Fal
     ne = res['ne_raw'][ne_gt_floor]/1e14
     ne_unc = res['ne_raw_unc'][ne_gt_floor]/1e14
     R_ne = res['ne_R'][ne_gt_floor] # same as above
-
-    R_brun = res['R_sep'] # this is the R-coordinate of the separatrix according to EFIT (magnetics)
-
-    # will ignore next block of code for now, later we will:
-    #    -also fit the pressure, pe
-    #    -add the option to take in a previously computed fit (denoted by the _prof variables)
-
-    '''
-
+    
     pe = res['pe_raw'][pe_gt_floor]
     pe_unc =  res['pe_raw_unc'][pe_gt_floor]
-     pe_unc = (res['pe_raw'][db]*np.sqrt((res['Te_raw_unc'][db]/res['Te_raw'][db])**2 + (res['ne_raw_unc'][db]/res['ne_raw'][db])**2))[pe_gt_floor] 
     R_pe = res['pe_R'][pe_gt_floor]
 
+    R_efit = res['R_sep'] # this is the R-coordinate of the separatrix according to EFIT (magnetics)
+
+    # TO ADD: add the option to take in a previously computed fit (denoted by the _prof variables)
+    '''
     R_fit = res['R_prof']
     Te_fit = res['Te_prof']
     ne_fit = res['ne_prof']/1e14 # cm^{-3} --> 10^{20} m^{-3} 
@@ -290,10 +295,6 @@ def find_separatrix(res, fit_type='log_linear', delta_T_threshold=None, plot=Fal
     grad_ne_fit_unc = res['grad_ne_prof_unc']/1e14 # cm^{-4} --> 10^{20} m^{-4} 
     grad_pe_fit_unc = res['grad_pe_prof_unc']
 
-    Te_brun = postres['Te_ped'][db,2]*1e3 # keV --> eV
-    ne_brun = postres['ne_ped'][db,2]
-    pe_brun = postres['pe_ped'][db,2]
-
     '''
 
     #######################
@@ -305,7 +306,6 @@ def find_separatrix(res, fit_type='log_linear', delta_T_threshold=None, plot=Fal
     def linear_fit_lstsq(x, ylog, ylog_err):
 
         # Linear least squares fit
-
 
         Alog_mat = np.vstack([x, np.ones(len(x))]).T
         Wlog_mat = np.sqrt(np.diag(np.abs(1/ylog_err)))
@@ -328,38 +328,19 @@ def find_separatrix(res, fit_type='log_linear', delta_T_threshold=None, plot=Fal
         return lam, lam_unc, popt_log
 
 
-    # this is where the rest of the fitting functions will go:
-    # to code these up I would recommend using the scipy.optimize.curve_fit function
+    def linear_fit(x, ylog, ylogerr):
 
-    def linear_fit():
+        def f(x,a,b):
+            return a*x+b
 
-        # do the fitting and calculate lam = -y / grad y
-    
+        from scipy.optimize import curve_fit
+        
+        popt, pcov = curve_fit(f, x, ylog, sigma=ylogerr)
+
+        lam = -1/popt[0]
+        lam_unc = lam*(np.sqrt(pcov[0,0])/popt[0])**2
+
         return lam, lam_unc, popt
-
-    
-    def log_linear_fit():
-
-        # do the fitting and calculate lam = -y / grad y
-    
-        return lam, lam_unc, popt
-
-
-    def quadratic_fit():
-   
-        # do the fitting and calculate lam = -y / grad y
- 
-        return lam, lam_unc, popt
-
-    
-    def log_quadratic_fit():
-   
-        # do the fitting and calculate lam = -y / grad y
- 
-        return lam, lam_unc, popt
-    
-    # may want to add more fitting functions later, like a generalized polynomial or something else
-
 
 
     #####################
@@ -376,7 +357,7 @@ def find_separatrix(res, fit_type='log_linear', delta_T_threshold=None, plot=Fal
 
         # define fit interval
         fit_interval = 5e-3
-        fit_range = [R_brun-fit_interval, R_brun+fit_interval]
+        fit_range = [R_efit-fit_interval, R_efit+fit_interval]
         xx = np.linspace(fit_range[0], fit_range[1], 100)
 
         Te_mask_fit = (R_Te > fit_range[0]) & (R_Te < fit_range[1])
@@ -386,10 +367,8 @@ def find_separatrix(res, fit_type='log_linear', delta_T_threshold=None, plot=Fal
         ylog_tofit = np.log(Te[Te_mask_fit])
         yerrlog_tofit = Te_unc[Te_mask_fit]/Te[Te_mask_fit]
 
-
         # try to fit the data - if it fails for some reason, return nans
         try:
-   
             lam_T, lam_T_unc, popt_log = linear_fit_lstsq(xlog_tofit, ylog_tofit, yerrlog_tofit)    
 
             # popt_log should be the coefficients of the line fit to the log of the data
@@ -404,35 +383,16 @@ def find_separatrix(res, fit_type='log_linear', delta_T_threshold=None, plot=Fal
             lambda_Te = np.nan
             lambda_Te_unc = np.nan
 
-
-    # do an elif for the other fits
-    # here you should do any manipulation needed to the fitting interval as above and then make a call to the
-    # functions you defined above
-
-    elif fit_type == 'quadratic':
-        
-        fit_interval = 5e-3
-        fit_range = [R_brun-fit_interval, R_brun+fit_interval]
-        xx = np.linspace(fit_range[0], fit_range[1], 100)
-
-        Te_mask_fit = (R_Te > fit_range[0]) & (R_Te < fit_range[1])
-        
-        x_tofit = R_Te[Te_mask_fit]
-        y_tofit = Te[Te_mask_fit]
-        yerr_tofit = Te_unc[Te_mask_fit]
-
-        # this is where you'll want to use the "cleaned" data to pass it into the fit
-        lam_T, lam_T_unc, popt = some_other_fit(x_tofit, y_tofit, yerr_tofit)
-
+    else:
+        print('Fit type not recognized')
+    '''
     # can ignore this for now
     elif fit_type == 'tanh':
 
         xx = R_fit
         yfit = Te_fit
         dyfit = grad_Te_fit
-
-    else:
-        print('Fit type not recognized')
+    '''
 
 
     # now, using lambda_T that you've computed, find the separatrix
@@ -441,17 +401,14 @@ def find_separatrix(res, fit_type='log_linear', delta_T_threshold=None, plot=Fal
     # if the algorithm doesn't converge, return nans - may need to dig into why this is happening later
 
     try:
-        data_at_sep = single_pysepest(res, xx, yfit, dyfit)
-        print('Found separatrix at {:.3f} m with Te = {:.1f} eV'.format(data_at_sep['x_sep'], data_at_sep['Te']))
+        data_at_sep = single_pysepest(res, res['R_sep'], xx, yfit, dyfit)
     except:
         print('2-point model separatrix estimation failed using Te fit')
         return np.nan, np.nan
         #return np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan # real elegant, I know
-
-    # can choose to continue to fit iteratively until threshold is met
+    
     # this next block of code allows one to fit iteratively until a certain criterion is met
     # essentially fit once, find the separatrix, fit again around the new separatrix and so on and so forth
-    # for now, we'll ignore this and see if it makes sense to include later
 
     if delta_T_threshold is not None:
 
@@ -459,15 +416,16 @@ def find_separatrix(res, fit_type='log_linear', delta_T_threshold=None, plot=Fal
         # use delta_T_threshold = 2 for the rest (esp. nesep vs tesep plots)    
 
         try:
-            old_R = res['R_sep'][db]
+            old_R = res['R_sep']
             new_R = data_at_sep['x_sep']
 
             temp_diff = 200 # placeholder to enter the loop
             loop = 0 # limit on number of loops to use
 
-            alpha = 0 # relaxation for iteration so that jumps are not too large
+            loop_lim = 10
+            alpha = 0.75 # relaxation for iteration so that jumps are not too large
             ped_factor = 1 # factor to determine how much of interval inward of the "separatrix" should be kept
-            while temp_diff > delta_T_threshold and ~np.isnan(data_at_sep['x_sep']) and loop < 10:
+            while temp_diff > delta_T_threshold and ~np.isnan(data_at_sep['x_sep']) and loop < loop_lim:
 
                 fit_interval = 5e-3 # hard coded to be EFIT interval - could choose something different
                 fit_range_new = [alpha*old_R + (1-alpha)*new_R - fit_interval*ped_factor, alpha*old_R + (1-alpha)*new_R + fit_interval]
@@ -485,8 +443,7 @@ def find_separatrix(res, fit_type='log_linear', delta_T_threshold=None, plot=Fal
                 yfit_new = np.exp(popt_log_new[1] + xx*popt_log_new[0])
                 dyfit_new = np.gradient(yfit_new, xx_new)
 
-                # data_at_sep_new = single_pysepest(res, db, data_at_sep['x_sep'], xx_new, yfit_new, dyfit_new)
-                data_at_sep_new = single_pysepest(res, db, alpha*old_R + (1-alpha)*new_R, xx_new, yfit_new, dyfit_new)
+                data_at_sep_new = single_pysepest(res, alpha*old_R + (1-alpha)*new_R, xx_new, yfit_new, dyfit_new)
 
                 temp_diff = np.abs(data_at_sep['Te'] - data_at_sep_new['Te'])
 
@@ -501,10 +458,9 @@ def find_separatrix(res, fit_type='log_linear', delta_T_threshold=None, plot=Fal
 
                 loop += 1
 
-                # print(db, temp_diff)
-
-        except:
-            print('During loop, could not fit edge Te to an exponential for ind {}'.format(db))
+        except Exception as e:
+            print(e)
+            print('During loop, could not fit edge Te to an exponential')
             R_sep = np.nan
             Te_sep = np.nan
             lambda_Te = np.nan
@@ -512,21 +468,23 @@ def find_separatrix(res, fit_type='log_linear', delta_T_threshold=None, plot=Fal
 
     # save the data if it's physical (shouldn't really be more than 200 eV and can't be negative)
 
-    if (data_at_sep['Te'] < 200) & (data_at_sep['Te'] > 0):
+    if ((data_at_sep['Te'] < Te_max) & (data_at_sep['Te'] > Te_min) & (data_at_sep['x_sep'] < (np.nanmax(R_Te) + fit_interval))):
 
         R_sep = data_at_sep['x_sep']
         Te_sep = data_at_sep['Te']
 
-        # interpolate the lambda_T profile we get out to find the actual value at the separatrix
-
         if fit_type == 'log_linear':
+    
+            fit_range = [R_sep-fit_interval, R_sep+fit_interval]
+            Te_mask_fit = (R_Te > fit_range[0]) & (R_Te < fit_range[1])
+
+            xlog_tofit = R_Te[Te_mask_fit]
+            ylog_tofit = np.log(Te[Te_mask_fit])
+            yerrlog_tofit = Te_unc[Te_mask_fit]/Te[Te_mask_fit]
 
             lambda_Te = lam_T
             lambda_Te_unc = lam_T_unc
     
-        # will also want to add any other fit_types to here using the syntax for the tanh since
-        # the lambda_T will be a whole array if you do other types of fits
-
 
         elif fit_type == 'tanh':
                 
@@ -536,14 +494,15 @@ def find_separatrix(res, fit_type='log_linear', delta_T_threshold=None, plot=Fal
             lambda_Te = interp1d(xx, lam_T_fit)(data_at_sep['x_sep'])
             lambda_Te_unc = interp1d(xx, lam_T_unc_fit)(data_at_sep['x_sep'])
 
+        print('Te_sep estimated from exponential fit: {:.1f} eV'.format(Te_sep))
+
     else:
-        print('Separatrix estimation failed somewhere for index {}'.format(db))
+        print('Separatrix estimation failed somewhere')
 
         R_sep = np.nan
         Te_sep = np.nan
         lambda_Te = np.nan
         lambda_Te_unc = np.nan
-
 
     ### Proceed with ne fit ###
 
@@ -555,7 +514,7 @@ def find_separatrix(res, fit_type='log_linear', delta_T_threshold=None, plot=Fal
     if fit_type == 'log_linear':
 
         fit_interval = 5e-3
-        fit_range = [R_brun-fit_interval, R_brun+fit_interval]
+        fit_range = [R_efit-fit_interval, R_efit+fit_interval]
         xx = np.linspace(fit_range[0], fit_range[1], 100)
 
         ne_mask_fit = (R_ne > fit_range[0]) & (R_ne < fit_range[1])
@@ -592,9 +551,10 @@ def find_separatrix(res, fit_type='log_linear', delta_T_threshold=None, plot=Fal
         print('Fit type not recognized')
 
     # check for physicality of result - should probably add some stuff in about gradients here
-    if (ne_sep < 10) & (ne_sep > 0):
+    if (ne_sep < ne_max) & (ne_sep > ne_min):
         lambda_ne = lam_n
         lambda_ne_unc = lam_n_unc
+        print('ne_sep estimated from exponential fit: {:.2f} 10^20 m^-3'.format(ne_sep))
 
     else:
         print('ne fit values are unphysical')
@@ -602,13 +562,10 @@ def find_separatrix(res, fit_type='log_linear', delta_T_threshold=None, plot=Fal
         lambda_ne = np.nan
         lambda_ne_unc = np.nan
 
-    # for now will skip the pressure calculation #
-    '''
     # pe
     if fit_type == 'log_linear':
 
-        fit_interval = 5e-3
-        fit_range = [R_brun-fit_interval, R_brun+fit_interval]
+        fit_range = [R_efit-fit_interval, R_efit+fit_interval]
         xx = np.linspace(fit_range[0], fit_range[1], 100)
 
         pe_mask_fit = (R_pe > fit_range[0]) & (R_pe < fit_range[1])
@@ -645,9 +602,10 @@ def find_separatrix(res, fit_type='log_linear', delta_T_threshold=None, plot=Fal
         print('Fit type not recognized')
 
     # check for physicality of result - should probably add some stuff in about gradients here
-    if (pe_sep < 10e3) & (pe_sep > 0):
+    if (pe_sep < pe_max) & (pe_sep > pe_min):
         lambda_pe = lam_p
         lambda_pe_unc = lam_p_unc
+        print('pe_sep estimated from exponential fit: {:.1f} Pa'.format(pe_sep))
 
     else:
         print('pe fit values are unphysical')
@@ -655,7 +613,6 @@ def find_separatrix(res, fit_type='log_linear', delta_T_threshold=None, plot=Fal
         lambda_pe = np.nan
         lambda_pe_unc = np.nan
 
-    '''
 
     ### PLOTTING ###
 
@@ -666,10 +623,9 @@ def find_separatrix(res, fit_type='log_linear', delta_T_threshold=None, plot=Fal
 
         ax[0].errorbar(R_Te, Te, yerr=Te_unc, fmt='o', alpha=0.5, mfc='w')
         #ax[0].plot(R_fit, Te_fit, lw=2, linestyle='--')
-        #ax[0].plot(R_brun, Te_brun, 'X', markersize=12, c='C3', markeredgecolor='k', markeredgewidth=1)
-        ax[0].axvline(R_brun, linestyle='--', c='C3')
-        ax[0].axvline(R_brun-fit_interval, linestyle='-.', c='C3')
-        ax[0].axvline(R_brun+fit_interval, linestyle='-.', c='C3')
+        ax[0].axvline(R_efit, linestyle='--', c='C3')
+        ax[0].axvline(R_efit-fit_interval, linestyle='-.', c='C3')
+        ax[0].axvline(R_efit+fit_interval, linestyle='-.', c='C3')
 
         ax[0].errorbar(R_Te[Te_mask_fit], Te[Te_mask_fit], yerr=Te_unc[Te_mask_fit], fmt='o', c='C3', alpha=0.75, mfc='w',zorder=1)
     
@@ -685,10 +641,9 @@ def find_separatrix(res, fit_type='log_linear', delta_T_threshold=None, plot=Fal
         # ne
         ax[1].errorbar(R_ne, ne, yerr=ne_unc, fmt='o', alpha=0.5, mfc='w')
         #ax[1].plot(R_fit, ne_fit, lw=2, linestyle='--')
-        #ax[1].plot(R_brun, ne_brun, 'X', markersize=12, c='C3', markeredgecolor='k', markeredgewidth=1)
-        ax[1].axvline(R_brun, linestyle='--', c='C3')#, label='$\\lambda_{q}^{EFIT}$ sep')
-        ax[1].axvline(R_brun-fit_interval, linestyle='-.', c='C3')
-        ax[1].axvline(R_brun+fit_interval, linestyle='-.', c='C3')
+        ax[1].axvline(R_efit, linestyle='--', c='C3')#, label='$\\lambda_{q}^{EFIT}$ sep')
+        ax[1].axvline(R_efit-fit_interval, linestyle='-.', c='C3')
+        ax[1].axvline(R_efit+fit_interval, linestyle='-.', c='C3')
         #ax[1].axhline(res['nebar'][db]/1e20, linestyle=':', c='k', label='$\\overline{n}_{e}$')
         #ax[1].axhline(res['n_m3_avg'][db], linestyle=':', c='C2', label='$<n_{e}>$')
 
@@ -713,19 +668,26 @@ def find_separatrix(res, fit_type='log_linear', delta_T_threshold=None, plot=Fal
     #return R_sep, ne_sep, lambda_ne, lambda_ne_unc, Te_sep, lambda_Te, lambda_Te_unc, pe_sep, lambda_pe, lambda_pe_unc
 
 
-def single_pysepest(res, xx, yfit, dyfit, bound=1e-3):
+def single_pysepest(res, R_guess, xx, yfit, dyfit, bound=1e-3, tpm_model='standard', nefit=None, use_lq=False):
 
-    model = pysepest.models.conduction_limited_local_lam_q
+    if tpm_model == 'standard':
+        model = pysepest.models.conduction_limited_local_lam_q
+    elif tpm_model == 'kc_full':
+        model = pysepest.models_mw.conduction_limited_target_lam_q_kinetic_corrections
+    elif tpm_model == 'kc_up':
+        model = pysepest.models_mw.conduction_limited_local_lam_q_kinetic
+    else:
+        print('Chosen model not available')
 
     Zeff = 1.4
-    q_dist = 1
-    P_to_e = 0.6
-    P_to_LFS = 0.55
-    L_par = np.pi*res['R_sep']*res['q95']
+    q_dist = 2
+    P_to_e = 0.65
+    P_to_LFS = 0.5
+    L_par = np.pi*R_guess*res['q95']
     P_e_SOL = res['P_net']*1e6*P_to_e*P_to_LFS
 
     scalars = dict(
-        R = res['R_sep'],
+        R = R_guess,
         B_pol = res['Bp'],
         B_tor = res['Bt'],
         P_e_SOL = P_e_SOL,
@@ -737,21 +699,33 @@ def single_pysepest(res, xx, yfit, dyfit, bound=1e-3):
     profiles = dict()
 
     profiles['Te'] = interp1d(xx, yfit)
-    profiles['lam_Te'] = interp1d(xx, -yfit/dyfit)
 
-    x0 = res['R_sep'] - bound
-    x1 = res['R_sep'] + bound
+    if use_lq:
+        profiles['lam_Te'] = interp1d(xx, np.ones(len(xx))*7/2*res['lam_q_div'])
+    else:
+        profiles['lam_Te'] = interp1d(xx, -yfit/dyfit)
+
+    if tpm_model != 'standard':
+        profiles['ne'] = interp1d(xx, nefit*1e20)
+
+    x0 = R_guess - bound
+    x1 = R_guess + bound
 
     optimizer_options = dict(
                         optimizer = pysepest.optimizers.root_scalar,
                         x0 = x0, x1 = x1,
                         )
 
-    # optimizer_options = dict(
-    #         optimizer=pysepest.optimizers.minimize_scalar_L2,
-    #         method='bounded', bounds=(x0, x1))
-
     data_at_sep, optim_res = pysepest.find_sep(scalars, profiles, model, optimizer_options)
+   
+    if np.isnan(data_at_sep['x_sep']): 
+
+        x0 = R_guess - bound*5
+        x1 = R_guess + bound*5
+
+        optimizer_options = dict(
+            optimizer=pysepest.optimizers.minimize_scalar_L2,
+            method='bounded', bounds=(x0, x1))
 
     return data_at_sep
 

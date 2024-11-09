@@ -26,6 +26,8 @@ reduced_outputs = False
 fit_type = 'osborne' #omfit_mtanh, polynomial, exp_polynomial
 prepost_filter = True
 convert_to_csv = True
+lambdaq_type = 'profile'
+sub_type = 'log_linear'
 
 ##########################################################
 
@@ -58,10 +60,8 @@ else:
                 'area_LCFS','R_prof','rhop_prof','R_raw','rhop_raw',\
                 'ne_R','Te_R','pe_R','ne_rhop','Te_rhop','pe_rhop',\
                 'shot','tmin','tmax','f_gw','n_m3_avg','T_eV_avg','p_Pa_avg','gas_rate','gas_fuel','gas_cum',\
-                'gradB_drift_up', 'favorable','regime','widx','CRYO_ON','R_geo','a_geo','R_sep','lam_q','Bp_OMP','Bt_OMP','ts_mult_factor']
-
-
-
+                'gradB_drift_up', 'favorable','regime','widx','CRYO_ON','R_geo','a_geo','R_sep_EFIT','lam_q','Bp_OMP','Bt_OMP','ts_mult_factor',
+                'Te_sep', 'lq_for_2pm_type']
 
 
 def smooth(y, box_pts):
@@ -201,7 +201,8 @@ def run_db(res, windows, plot_kin=False, user_check=False):
                                                            core_ts_mult=False,
                                                            edge_ts_mult=False,
                                                            plot_fit=False,
-                                                           prepost_filter=prepost_filter)
+                                                           prepost_filter=prepost_filter,
+                                                           lambdaq_type=lambdaq_type, sub_type=sub_type)
 
                     f_ne, f_Te, f_pe, p_ne, p_Te, p_pe  = kp_out
  
@@ -329,7 +330,7 @@ def run_db(res, windows, plot_kin=False, user_check=False):
                         e = da.CModEFITTree(int(shot), tree='analysis', length_unit='m')
                     time = (tmin + tmax)/2
 
-                    res['R_sep'].append(e.rho2rho('sqrtpsinorm', 'Rmid', 1, time))
+                    res['R_sep_EFIT'].append(e.rho2rho('sqrtpsinorm', 'Rmid', 1, time))
 
                     # request for Bpol at the midplane
                     try: 
@@ -353,6 +354,9 @@ def run_db(res, windows, plot_kin=False, user_check=False):
 
                     res['Bp_OMP'].append(Bp_OMP)
                     res['Bt_OMP'].append(Bt_OMP)
+
+                    res['Te_sep'].append(f_Te.sep)
+                    res['lq_for_2pm_type'].append('{}, {}'.format(lambdaq_type, sub_type))
 
                 sres = single_shot.assemble_into_dict(shot, tmin, tmax, 
                                                         f_ne, f_Te, f_pe,
@@ -472,6 +476,9 @@ def write_to_csv(res, db_filestem):
     for c in range(9):
         res_csv['C{}_n'.format(c)] = res['ne_fit_coefs'][:,c]
         res_csv['C{}_T'.format(c)] = res['Te_fit_coefs'][:,c]
+
+    res_csv['Te_sep'] = res['Te_sep']
+    res_csv['lq_for_2pm_type'] = res['lq_for_2pm_type']
 
     import pandas as pd
     df = pd.DataFrame(res_csv)
