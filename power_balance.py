@@ -16,7 +16,7 @@ import data_access as da
 # more external dependencies
 import sys
 sys.path.append('/home/millerma')
-import pysepest.pysepest as pysepest
+import pysepest_kc.pysepest as pysepest
 
 
 # This is the wrapper for the 2-point model and is used when want to use scaling for lambda_q
@@ -562,6 +562,17 @@ def find_separatrix(res, fit_type='log_linear', delta_T_threshold=None, verbose=
         lambda_ne = np.nan
         lambda_ne_unc = np.nan
 
+    try:
+        nefit = np.exp(ne_popt_log[1] + xx_new*ne_popt_log[0])
+        data_at_sep_up = single_pysepest(res, data_at_sep['x_sep'], xx_new, yfit_new, dyfit_new, tpm_model='kc_up', nefit=nefit)
+        data_at_sep_full = single_pysepest(res, data_at_sep['x_sep'], xx_new, yfit_new, dyfit_new, tpm_model='kc_full', nefit=nefit)
+        Te_sep_up = data_at_sep_up['Te']
+        Te_sep_full = data_at_sep_full['Te']
+        print('Te_sep estimated using upstream kinetic corrections {:.1f} eV (not fully iterated)'.format(Te_sep_up))
+        print('Te_sep estimated using full kinetic corrections {:.1f} eV (not fully iterated)'.format(Te_sep_full))
+    except:
+        print('Estimate using kinetic corrections failed')
+
     # pe
     if fit_type == 'log_linear':
 
@@ -673,9 +684,9 @@ def single_pysepest(res, R_guess, xx, yfit, dyfit, bound=1e-3, tpm_model='standa
     if tpm_model == 'standard':
         model = pysepest.models.conduction_limited_local_lam_q
     elif tpm_model == 'kc_full':
-        model = pysepest.models_mw.conduction_limited_target_lam_q_kinetic_corrections
+        model = pysepest.models_mw_alt.conduction_limited_target_lam_q_kinetic_corrections
     elif tpm_model == 'kc_up':
-        model = pysepest.models_mw.conduction_limited_local_lam_q_kinetic
+        model = pysepest.models_mw_alt.conduction_limited_local_lam_q_kinetic
     else:
         print('Chosen model not available')
 
