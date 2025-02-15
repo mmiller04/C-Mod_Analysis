@@ -13,7 +13,7 @@ import pickle as pkl
 from scipy.interpolate import interp1d, RectBivariateSpline, UnivariateSpline, splev, splrep
 from scipy.optimize import curve_fit
 from cmod_tools import get_cmod_kin_profs
-#import aurora
+import aurora
 from IPython import embed
 from scipy import stats
 
@@ -447,9 +447,9 @@ if __name__=='__main__':
 #    tmax = 1.1
 
     # test LDL
-#    shot = 1090820011
-#    tmin = 1.0
-#    tmax = 1.1
+    shot = 1090820011
+    tmin = 1.0
+    tmax = 1.1
 
     # USN I-modes
 #    shot = 1110215014
@@ -457,9 +457,9 @@ if __name__=='__main__':
 #    tmax = 0.99
 
     # test H-mode
-    shot = 1120829009
-    tmin = 0.92
-    tmax = 1.0
+#    shot = 1120829009
+#    tmin = 0.92
+#    tmax = 1.0
 
 
     ############
@@ -493,7 +493,7 @@ if __name__=='__main__':
 
     ##### PLOT RESULTS #####
     
-    #plot_check_fits(res, Te_min=Te_min)
+    plot_check_fits(res, Te_min=Te_min)
 
     # make some plots to check uncertainties - use dictionaries to plot
     kp_dict = {'ne':{}, 'grad_ne':{}, 'Te':{}, 'grad_Te':{}, 'pe':{}, 'grad_pe':{}}
@@ -503,8 +503,8 @@ if __name__=='__main__':
     kp_dict['rhop'] = f_ne.x # can grab .x for any parameter (f_ne, f_Te, f_pe) - should all be the same
 
 
-    #gaussian_plots = ['grad_ne','grad_Te'] #'Te', 'Te_std', 'grad_Te', 'grad_Te_std'
-    #plot_kp_gaussian(kp_dict, toplot=gaussian_plots)
+    gaussian_plots = ['grad_ne','grad_Te'] #'Te', 'Te_std', 'grad_Te', 'grad_Te_std'
+    plot_kp_gaussian(kp_dict, toplot=gaussian_plots)
 
 
     ##### SAVE SINGLE SHOT RESULTS #####
