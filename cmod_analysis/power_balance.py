@@ -8,7 +8,7 @@ import pickle as pkl, os
 import cmod_tools
 
 from scipy.constants import Boltzmann as kB, e as q_electron
-import aurora
+#import aurora
 
 # from this repo
 import data_access as da

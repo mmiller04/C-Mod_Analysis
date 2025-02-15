@@ -13,7 +13,7 @@ import pickle as pkl
 from scipy.interpolate import interp1d, RectBivariateSpline, UnivariateSpline, splev, splrep
 from scipy.optimize import curve_fit
 from cmod_tools import get_cmod_kin_profs
-import aurora
+#import aurora
 from IPython import embed
 from scipy import stats
 
@@ -447,9 +447,9 @@ if __name__=='__main__':
 #    tmax = 1.1
 
     # test LDL
-    shot = 1090820011
-    tmin = 1.0
-    tmax = 1.1
+#    shot = 1090820011
+#    tmin = 1.0
+#    tmax = 1.1
 
     # USN I-modes
 #    shot = 1110215014
@@ -457,9 +457,9 @@ if __name__=='__main__':
 #    tmax = 0.99
 
     # test H-mode
-#    shot = 1120829009
-#    tmin = 0.92
-#    tmax = 1.0
+    shot = 1120829009
+    tmin = 0.92
+    tmax = 1.0
 
 
     ############
@@ -493,7 +493,7 @@ if __name__=='__main__':
 
     ##### PLOT RESULTS #####
     
-    plot_check_fits(res, Te_min=Te_min)
+    #plot_check_fits(res, Te_min=Te_min)
 
     # make some plots to check uncertainties - use dictionaries to plot
     kp_dict = {'ne':{}, 'grad_ne':{}, 'Te':{}, 'grad_Te':{}, 'pe':{}, 'grad_pe':{}}
@@ -503,13 +503,13 @@ if __name__=='__main__':
     kp_dict['rhop'] = f_ne.x # can grab .x for any parameter (f_ne, f_Te, f_pe) - should all be the same
 
 
-    gaussian_plots = ['grad_ne','grad_Te'] #'Te', 'Te_std', 'grad_Te', 'grad_Te_std'
-    plot_kp_gaussian(kp_dict, toplot=gaussian_plots)
+    #gaussian_plots = ['grad_ne','grad_Te'] #'Te', 'Te_std', 'grad_Te', 'grad_Te_std'
+    #plot_kp_gaussian(kp_dict, toplot=gaussian_plots)
 
 
     ##### SAVE SINGLE SHOT RESULTS #####
 
-    output = False # should be put in as an argument into run
+    output = True # should be put in as an argument into run
 
     if output:
 
@@ -519,18 +519,37 @@ if __name__=='__main__':
 
         # store profiles in a pickle file (warning: changing this data structure will break things)
         fit = res['fit']
-        out2 = [fit['rhop'],fit['r/a'],fit['R'],
-                fit['ne'],fit['ne_unc'],fit['Te'],fit['Te_unc'],
-                fit['grad_ne'], fit['grad_ne_unc'], fit['grad_Te'], fit['grad_Te_unc']]
+        out2 = {
+            'rhop': fit['rhop'],
+            #'r/a': fit['r/a'],
+            'R': fit['R'],
+            'ne': fit['ne'],
+            'ne_unc': fit['ne_unc'],
+            'Te': fit['Te'],
+            'Te_unc': fit['Te_unc'],
+            'grad_ne': fit['grad_ne'],
+            'grad_ne_unc': fit['grad_ne_unc'],
+            'grad_Te': fit['grad_Te'],
+            'grad_Te_unc': fit['grad_Te_unc'],
+        }
             
         with open(f'Dicts/ts_{shot}_{tmin_ms}_{tmax_ms}.pkl','wb') as f:
             pkl.dump(out2,f)
 
         # store raw data as well
         raw = res['raw']
-        out3 = [raw['rhop'],raw['r/a'],raw['R'],raw['nn'],
-                raw['ne_rhop'], raw['ne'],raw['ne_unc'],
-                raw['Te_rhop'], raw['Te'],raw['Te_unc']]
+        out3 = {
+            'rhop': raw['rhop'],
+            #'r/a': raw['r/a'],
+            'R': raw['R'],
+            #'nn': raw['nn'],
+            'ne_rhop': raw['ne_rhop'],
+            'ne': raw['ne'],
+            'ne_unc': raw['ne_unc'],
+            'Te_rhop': raw['Te_rhop'],
+            'Te': raw['Te'],
+            'Te_unc': raw['Te_unc'],
+        }
 
         with open(f'Dicts/ts_raw_{shot}_{tmin_ms}_{tmax_ms}.pkl','wb') as f:
             pkl.dump(out3,f)
