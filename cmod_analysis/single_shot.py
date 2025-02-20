@@ -13,9 +13,13 @@ import pickle as pkl
 from scipy.interpolate import interp1d, RectBivariateSpline, UnivariateSpline, splev, splrep
 from scipy.optimize import curve_fit
 from cmod_tools import get_cmod_kin_profs
-import aurora
 from IPython import embed
 from scipy import stats
+
+try:
+    import aurora
+except:
+    aurora = None
 
 # from this repo
 import data_access as da

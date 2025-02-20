@@ -16,8 +16,12 @@ import MDSplus
 
 from scipy.constants import Boltzmann as kB, e as q_electron
 from scipy.optimize import curve_fit
-import aurora
 import sys
+
+try:
+    import aurora
+except:
+    aurora = None
 
 # from same repo
 import fit_profiles as fp
