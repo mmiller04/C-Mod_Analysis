@@ -123,13 +123,13 @@ class Profile(object):
         self.X_labels = X_labels
         self.y_label = y_label
         
-        self.y = scipy.array([], dtype=float)
+        self.y = np.array([], dtype=float)
         self.X = None
-        self.err_y = scipy.array([], dtype=float)
+        self.err_y = np.array([], dtype=float)
         self.err_X = None
         self.channels = None
         
-        self.transformed = scipy.array([], dtype=Channel)
+        self.transformed = np.array([], dtype=Channel)
         
         self.gp = None
 
@@ -172,7 +172,7 @@ class Profile(object):
             Bad shapes for any of the inputs, negative values for `err_y` or `n`.
         """
         # Verify y has only one non-trivial dimension:
-        y = scipy.atleast_1d(scipy.asarray(y, dtype=float))
+        y = np.atleast_1d(np.asarray(y, dtype=float))
         if y.ndim != 1:
             raise ValueError(
                 "Dependent variables y must have only one dimension! Shape of y "
@@ -184,15 +184,15 @@ class Profile(object):
 
         # FS: some new error with nan's in err_y...
         # Should be fine to set those nan's to 0:
-        err_y[scipy.isnan(err_y)] = 0.0
+        err_y[np.isnan(err_y)] = 0.0
         
         # Handle scalar error or verify shape of array error matches shape of y:
         try:
             iter(err_y)
         except TypeError:
-            err_y = err_y * scipy.ones_like(y, dtype=float)
+            err_y = err_y * np.ones_like(y, dtype=float)
         else:
-            err_y = scipy.asarray(err_y, dtype=float)
+            err_y = np.asarray(err_y, dtype=float)
             if err_y.shape != y.shape:
                 raise ValueError(
                     "When using array-like err_y, shape must match shape of y! "
@@ -203,7 +203,7 @@ class Profile(object):
             raise ValueError("All elements of err_y must be non-negative!")
         
         # Handle scalar independent variable or convert array input into matrix.
-        X = scipy.atleast_2d(scipy.asarray(X, dtype=float))
+        X = np.atleast_2d(np.asarray(X, dtype=float))
         # Correct single-dimension inputs:
         if self.X_dim == 1 and X.shape[0] == 1:
             X = X.T
@@ -218,13 +218,13 @@ class Profile(object):
         try:
             iter(err_X)
         except TypeError:
-            err_X = err_X * scipy.ones_like(X, dtype=float)
+            err_X = err_X * np.ones_like(X, dtype=float)
         else:
-            err_X = scipy.asarray(err_X, dtype=float)
+            err_X = np.asarray(err_X, dtype=float)
             # TODO: Steal this idiom for handling n in gptools!
             if err_X.ndim == 1 and self.X_dim != 1:
-                err_X = scipy.tile(err_X, (X.shape[0], 1))
-        err_X = scipy.atleast_2d(scipy.asarray(err_X, dtype=float))
+                err_X = np.tile(err_X, (X.shape[0], 1))
+        err_X = np.atleast_2d(np.asarray(err_X, dtype=float))
         if self.X_dim == 1 and err_X.shape[0] == 1:
             err_X = err_X.T
         if err_X.shape != X.shape:
@@ -239,34 +239,34 @@ class Profile(object):
         
         # Process channel flags:
         if channels is None:
-            channels = scipy.tile(scipy.arange(0, len(y)), (X.shape[1], 1)).T
+            channels = np.tile(np.arange(0, len(y)), (X.shape[1], 1)).T
             # channels = scipy.copy(X)
         else:
             if isinstance(channels, dict):
                 d_channels = channels
-                channels = scipy.tile(scipy.arange(0, len(y)), (X.shape[1], 1)).T
+                channels = np.tile(np.arange(0, len(y)), (X.shape[1], 1)).T
                 # channels = scipy.copy(X)
                 for idx in d_channels:
                     channels[:, idx] = d_channels[idx]
             else:
-                channels = scipy.asarray(channels)
+                channels = np.asarray(channels)
                 if channels.shape != (len(y), X.shape[1]):
                     raise ValueError("Shape of channels and X must be the same!")
         
         if self.X is None:
             self.X = X
         else:
-            self.X = scipy.vstack((self.X, X))
+            self.X = np.vstack((self.X, X))
         if self.channels is None:
             self.channels = channels
         else:
-            self.channels = scipy.vstack((self.channels, channels))
+            self.channels = np.vstack((self.channels, channels))
         if self.err_X is None:
             self.err_X = err_X
         else:
-            self.err_X = scipy.vstack((self.err_X, err_X))
-        self.y = scipy.append(self.y, y)
-        self.err_y = scipy.append(self.err_y, err_y)
+            self.err_X = np.vstack((self.err_X, err_X))
+        self.y = np.append(self.y, y)
+        self.err_y = np.append(self.err_y, err_y)
         
         if self.gp is not None:
             self.gp.add_data(X, y, err_y=err_y)
@@ -300,7 +300,7 @@ class Profile(object):
                           channels=other.channels)
         
         if len(other.transformed) > 0:
-            self.transformed = scipy.append(self.transformed, other.transformed)
+            self.transformed = np.append(self.transformed, other.transformed)
 
 
     def remove_points(self, conditional):
@@ -364,15 +364,15 @@ class Profile(object):
             raise ValueError("Can't drop axis from a univariate profile!")
         self.X_dim -= 1
         if self.X is not None:
-            self.channels = scipy.delete(self.channels, axis, axis=1)
-            self.X = scipy.delete(self.X, axis, axis=1)
-            self.err_X = scipy.delete(self.err_X, axis, axis=1)
+            self.channels = np.delete(self.channels, axis, axis=1)
+            self.X = np.delete(self.X, axis, axis=1)
+            self.err_X = np.delete(self.err_X, axis, axis=1)
         self.X_labels.pop(axis)
         self.X_units.pop(axis)
         
         for p in self.transformed:
-            p.X = scipy.delete(p.X, axis, axis=2)
-            p.err_X = scipy.delete(p.err_X, axis, axis=2)
+            p.X = np.delete(p.X, axis, axis=2)
+            p.err_X = np.delete(p.err_X, axis, axis=2)
 
     def plot_data(self, ax=None, label_axes=True, **kwargs):
         """Plot the data stored in this Profile. Only works for X_dim = 1 or 2.
@@ -494,24 +494,24 @@ class BivariatePlasmaProfile(Profile):
         elif self.X_dim == 1 or (self.X_dim == 2 and self.abscissa == 'RZ'):
             if self.abscissa.startswith('sqrt') and self.abscissa[4:] == new_abscissa:
                 if self.X is not None:
-                    new_rho = scipy.power(self.X[:, 0], 2)
+                    new_rho = np.power(self.X[:, 0], 2)
                     # Approximate form from uncertainty propagation:
                     err_new_rho = self.err_X[:, 0] * 2 * self.X[:, 0]
                 
                 # Handle transformed quantities:
                 for p in self.transformed:
-                    p.X[:, :, 0] = scipy.power(p.X[:, :, 0], 2)
+                    p.X[:, :, 0] = np.power(p.X[:, :, 0], 2)
                     p.err_X[:, :, 0] = p.err_X[:, :, 0] * 2 * p.X[:, :, 0]
             elif new_abscissa.startswith('sqrt') and self.abscissa == new_abscissa[4:]:
                 if self.X is not None:
-                    new_rho = scipy.power(self.X[:, 0], 0.5)
+                    new_rho = np.power(self.X[:, 0], 0.5)
                     # Approximate form from uncertainty propagation:
-                    err_new_rho = self.err_X[:, 0] / (2 * scipy.sqrt(self.X[:, 0]))
+                    err_new_rho = self.err_X[:, 0] / (2 * np.sqrt(self.X[:, 0]))
                 
                 # Handle transformed quantities:
                 for p in self.transformed:
-                    p.X[:, :, 0] = scipy.power(p.X[:, :, 0], 0.5)
-                    p.err_X[:, :, 0] = p.err_X[:, :, 0]  / (2 * scipy.sqrt(p.X[:, :, 0]))
+                    p.X[:, :, 0] = np.power(p.X[:, :, 0], 0.5)
+                    p.err_X[:, :, 0] = p.err_X[:, :, 0]  / (2 * np.sqrt(p.X[:, :, 0]))
             else:
                 times = self._get_efit_times_to_average()
                 
@@ -536,11 +536,11 @@ class BivariatePlasmaProfile(Profile):
                             times,
                             each_t=True
                         )
-                        p.X = scipy.delete(p.X, 1, axis=2)
-                        p.err_X = scipy.delete(p.err_X, 1, axis=2)
-                        p.X[:, :, 0] = scipy.atleast_3d(scipy.mean(new_rhos, axis=0))
-                        p.err_X[:, :, 0] = scipy.atleast_3d(scipy.std(new_rhos, axis=0, ddof=ddof))
-                        p.err_X[scipy.isnan(p.err_X)] = 0
+                        p.X = np.delete(p.X, 1, axis=2)
+                        p.err_X = np.delete(p.err_X, 1, axis=2)
+                        p.X[:, :, 0] = np.atleast_3d(np.mean(new_rhos, axis=0))
+                        p.err_X[:, :, 0] = np.atleast_3d(np.std(new_rhos, axis=0, ddof=ddof))
+                        p.err_X[np.isnan(p.err_X)] = 0
                 else:
                     if self.X is not None:
                         new_rhos = self.efit_tree.rho2rho(
@@ -560,36 +560,36 @@ class BivariatePlasmaProfile(Profile):
                             times,
                             each_t=True
                         )
-                        p.X[:, :, 0] = scipy.atleast_3d(scipy.mean(new_rhos, axis=0))
-                        p.err_X[:, :, 0] = scipy.atleast_3d(scipy.std(new_rhos, axis=0, ddof=ddof))
-                        p.err_X[scipy.isnan(p.err_X)] = 0
+                        p.X[:, :, 0] = np.atleast_3d(np.mean(new_rhos, axis=0))
+                        p.err_X[:, :, 0] = np.atleast_3d(np.std(new_rhos, axis=0, ddof=ddof))
+                        p.err_X[np.isnan(p.err_X)] = 0
                 if self.X is not None:
-                    new_rho = scipy.mean(new_rhos, axis=0)
-                    err_new_rho = scipy.std(new_rhos, axis=0, ddof=ddof)
-                    err_new_rho[scipy.isnan(err_new_rho)] = 0
+                    new_rho = np.mean(new_rhos, axis=0)
+                    err_new_rho = np.std(new_rhos, axis=0, ddof=ddof)
+                    err_new_rho[np.isnan(err_new_rho)] = 0
             
             if self.X is not None:
-                self.X = scipy.atleast_2d(new_rho).T
-                self.err_X = scipy.atleast_2d(err_new_rho).T
+                self.X = np.atleast_2d(new_rho).T
+                self.err_X = np.atleast_2d(err_new_rho).T
             self.X_labels = [_X_label_mapping[new_abscissa]]
             self.X_units = [_X_unit_mapping[new_abscissa]]
         else:
             if self.abscissa.startswith('sqrt') and self.abscissa[4:] == new_abscissa:
                 if self.X is not None:
-                    new_rho = scipy.power(self.X[:, 1], 2)
+                    new_rho = np.power(self.X[:, 1], 2)
                 
                 # Handle transformed quantities:
                 for p in self.transformed:
-                    p.X[:, :, 1] = scipy.power(p.X[:, :, 1], 2)
-                    p.err_X[:, :, 1] = scipy.zeros_like(p.X[:, :, 1])
+                    p.X[:, :, 1] = np.power(p.X[:, :, 1], 2)
+                    p.err_X[:, :, 1] = np.zeros_like(p.X[:, :, 1])
             elif new_abscissa.startswith('sqrt') and self.abscissa == new_abscissa[4:]:
                 if self.X is not None:
-                    new_rho = scipy.power(self.X[:, 1], 0.5)
+                    new_rho = np.power(self.X[:, 1], 0.5)
                 
                 # Handle transformed quantities:
                 for p in self.transformed:
-                    p.X[:, :, 1] = scipy.power(p.X[:, :, 1], 0.5)
-                    p.err_X[:, :, 1] = scipy.zeros_like(p.X[:, :, 1])
+                    p.X[:, :, 1] = np.power(p.X[:, :, 1], 0.5)
+                    p.err_X[:, :, 1] = np.zeros_like(p.X[:, :, 1])
             elif self.abscissa == 'RZ':
                 # Need to handle this case separately because of the extra column:
                 if self.X is not None:
@@ -612,9 +612,9 @@ class BivariatePlasmaProfile(Profile):
                         p.X[:, :, 0],
                         each_t=False
                     )
-                    p.X = scipy.delete(p.X, 2, axis=2)
-                    p.err_X = scipy.delete(p.err_X, 2, axis=2)
-                    p.err_X[:, :, 1] = scipy.zeros_like(p.X[:, :, 1])
+                    p.X = np.delete(p.X, 2, axis=2)
+                    p.err_X = np.delete(p.err_X, 2, axis=2)
+                    p.err_X[:, :, 1] = np.zeros_like(p.X[:, :, 1])
             else:
                 if self.X is not None:
                     new_rho = self.efit_tree.rho2rho(
@@ -634,25 +634,25 @@ class BivariatePlasmaProfile(Profile):
                         p.X[:, :, 0],
                         each_t=False
                     )
-                    p.err_X[:, :, 1] = scipy.zeros_like(p.X[:, :, 1])
+                    p.err_X[:, :, 1] = np.zeros_like(p.X[:, :, 1])
             
             if self.X is not None:
-                err_new_rho = scipy.zeros_like(self.X[:, 0])
+                err_new_rho = np.zeros_like(self.X[:, 0])
             
-                self.X = scipy.hstack((
-                    scipy.atleast_2d(self.X[:, 0]).T,
-                    scipy.atleast_2d(new_rho).T
+                self.X = np.hstack((
+                    np.atleast_2d(self.X[:, 0]).T,
+                    np.atleast_2d(new_rho).T
                 ))
-                self.err_X = scipy.hstack((
-                    scipy.atleast_2d(self.err_X[:, 0]).T,
-                    scipy.atleast_2d(err_new_rho).T
+                self.err_X = np.hstack((
+                    np.atleast_2d(self.err_X[:, 0]).T,
+                    np.atleast_2d(err_new_rho).T
                 ))
             
             self.X_labels = [self.X_labels[0], _X_label_mapping[new_abscissa]]
             self.X_units = [self.X_units[0], _X_unit_mapping[new_abscissa]]
         self.abscissa = new_abscissa
         if drop_nan and self.X is not None:
-            self.remove_points(scipy.isnan(self.X).any(axis=1))
+            self.remove_points(np.isnan(self.X).any(axis=1))
 
     def add_profile(self, other):
         """Absorbs the data from another profile object.
@@ -724,7 +724,7 @@ class Channel(object):
         self.y_label = y_label
         self.y_units = y_units
         # Verify y has only one non-trivial dimension:
-        y = scipy.atleast_1d(scipy.asarray(y, dtype=float))
+        y = np.atleast_1d(np.asarray(y, dtype=float))
         if y.ndim != 1:
             raise ValueError(
                 "Dependent variables y must have only one dimension! Shape of y "
@@ -735,9 +735,9 @@ class Channel(object):
         try:
             iter(err_y)
         except TypeError:
-            err_y = err_y * scipy.ones_like(y, dtype=float)
+            err_y = err_y * np.ones_like(y, dtype=float)
         else:
-            err_y = scipy.asarray(err_y, dtype=float)
+            err_y = np.asarray(err_y, dtype=float)
             if err_y.shape != y.shape:
                 raise ValueError(
                     "When using array-like err_y, shape must match shape of y! "
@@ -748,7 +748,7 @@ class Channel(object):
             raise ValueError("All elements of err_y must be non-negative!")
         
         # Handle scalar independent variable or convert array input into matrix.
-        X = scipy.atleast_3d(scipy.asarray(X, dtype=float))
+        X = np.atleast_3d(np.asarray(X, dtype=float))
         if T is None and X.shape[0] != len(y):
             raise ValueError(
                 "Shape of independent variables must be (len(y), D)! "
@@ -758,7 +758,7 @@ class Channel(object):
         
         if T is not None:
             # Promote T if it is a single observation:
-            T = scipy.atleast_2d(scipy.asarray(T, dtype=float))
+            T = np.atleast_2d(np.asarray(T, dtype=float))
             if T.ndim != 2:
                 raise ValueError("T must have exactly 2 dimensions!")
             if T.shape[0] != len(y):
@@ -766,18 +766,18 @@ class Channel(object):
             if T.shape[1] != X.shape[1]:
                 raise ValueError("Second dimension of T must match second dimension of X!")
         else:
-            T = scipy.eye(len(y))
+            T = np.eye(len(y))
         
         # Process uncertainty in X:
         try:
             iter(err_X)
         except TypeError:
-            err_X = err_X * scipy.ones_like(X, dtype=float)
+            err_X = err_X * np.ones_like(X, dtype=float)
         else:
-            err_X = scipy.asarray(err_X, dtype=float)
+            err_X = np.asarray(err_X, dtype=float)
             if err_X.ndim == 1 and X.shape[2] != 1:
-                err_X = scipy.tile(err_X, (X.shape[0], 1))
-        err_X = scipy.atleast_2d(scipy.asarray(err_X, dtype=float))
+                err_X = np.tile(err_X, (X.shape[0], 1))
+        err_X = np.atleast_2d(np.asarray(err_X, dtype=float))
         if err_X.shape != X.shape:
             raise ValueError(
                 "Shape of uncertainties on independent variables must be "
@@ -886,21 +886,21 @@ def neETS(shot, abscissa='RZ', t_min=None, t_max=None, electrons=None,
 
     Z_ETS = electrons.getNode(r'yag_edgets.data:fiber_z').data() + Z_shift
     R_ETS = (electrons.getNode(r'yag.results.param:R').data() *
-             scipy.ones_like(Z_ETS))
+             np.ones_like(Z_ETS))
     channels = list(range(0, len(Z_ETS)))
 
-    t_grid, Z_grid = scipy.meshgrid(t_ne_ETS, Z_ETS)
-    t_grid, R_grid = scipy.meshgrid(t_ne_ETS, R_ETS)
-    t_grid, channel_grid = scipy.meshgrid(t_ne_ETS, channels)
+    t_grid, Z_grid = np.meshgrid(t_ne_ETS, Z_ETS)
+    t_grid, R_grid = np.meshgrid(t_ne_ETS, R_ETS)
+    t_grid, channel_grid = np.meshgrid(t_ne_ETS, channels)
 
     ne = ne_ETS.flatten()
     err_ne = dev_ne_ETS.flatten()
-    Z = scipy.atleast_2d(Z_grid.flatten())
-    R = scipy.atleast_2d(R_grid.flatten())
+    Z = np.atleast_2d(Z_grid.flatten())
+    R = np.atleast_2d(R_grid.flatten())
     channels = channel_grid.flatten()
-    t = scipy.atleast_2d(t_grid.flatten())
+    t = np.atleast_2d(t_grid.flatten())
 
-    X = scipy.hstack((t.T, R.T, Z.T))
+    X = np.hstack((t.T, R.T, Z.T))
 
     p.shot = shot
     if efit_tree is None:
@@ -911,9 +911,9 @@ def neETS(shot, abscissa='RZ', t_min=None, t_max=None, electrons=None,
 
     p.add_data(X, ne, err_y=err_ne, channels={1: channels, 2: channels})
     if t_min is not None:
-        p.remove_points(scipy.asarray(p.X[:, 0]).flatten() < t_min)
+        p.remove_points(np.asarray(p.X[:, 0]).flatten() < t_min)
     if t_max is not None:
-        p.remove_points(scipy.asarray(p.X[:, 0]).flatten() > t_max)
+        p.remove_points(np.asarray(p.X[:, 0]).flatten() > t_max)
     p.convert_abscissa(abscissa)
 
     if remove_edge:
@@ -972,7 +972,7 @@ def neCTS(shot, abscissa='RZ', t_min=None, t_max=None, electrons=None,
 
     t_ne_TS = N_ne_TS.dim_of().data() # only need to get timebase for one of them
     if (shot > 1030000000) & (shot < 1040000000):
-        ne_TS = scipy.concatenate((N_ne_TS.data() / 1e20, N_ne_TS_old.data() / 1e20))
+        ne_TS = np.concatenate((N_ne_TS.data() / 1e20, N_ne_TS_old.data() / 1e20))
     else:
         ne_TS = N_ne_TS.data() / 1e20
 
@@ -991,27 +991,27 @@ def neCTS(shot, abscissa='RZ', t_min=None, t_max=None, electrons=None,
         N_Z_CTS = electrons.getNode(r'yag.results.global.profile.z_sorted')
 
     if (shot > 1030000000) & (shot < 1040000000):
-        dev_ne_TS = scipy.concatenate((N_dev_ne_TS.data() / 1e20, N_dev_ne_TS_old.data() / 1e20))
-        Z_CTS = scipy.concatenate((N_Z_CTS.data() + Z_shift, N_Z_CTS_old.data() + Z_shift))
+        dev_ne_TS = np.concatenate((N_dev_ne_TS.data() / 1e20, N_dev_ne_TS_old.data() / 1e20))
+        Z_CTS = np.concatenate((N_Z_CTS.data() + Z_shift, N_Z_CTS_old.data() + Z_shift))
     else:
         dev_ne_TS = N_dev_ne_TS.data() / 1e20
         Z_CTS = N_Z_CTS.data() + Z_shift
 
-    R_CTS = (electrons.getNode(r'yag.results.param:r').data() * scipy.ones_like(Z_CTS))
+    R_CTS = (electrons.getNode(r'yag.results.param:r').data() * np.ones_like(Z_CTS))
     channels = list(range(0, len(Z_CTS)))
     
-    t_grid, Z_grid = scipy.meshgrid(t_ne_TS, Z_CTS)
-    t_grid, R_grid = scipy.meshgrid(t_ne_TS, R_CTS)
-    t_grid, channel_grid = scipy.meshgrid(t_ne_TS, channels)
+    t_grid, Z_grid = np.meshgrid(t_ne_TS, Z_CTS)
+    t_grid, R_grid = np.meshgrid(t_ne_TS, R_CTS)
+    t_grid, channel_grid = np.meshgrid(t_ne_TS, channels)
     
     ne = ne_TS.flatten()
     err_ne = dev_ne_TS.flatten()
-    Z = scipy.atleast_2d(Z_grid.flatten())
-    R = scipy.atleast_2d(R_grid.flatten())
+    Z = np.atleast_2d(Z_grid.flatten())
+    R = np.atleast_2d(R_grid.flatten())
     channels = channel_grid.flatten()
-    t = scipy.atleast_2d(t_grid.flatten())
+    t = np.atleast_2d(t_grid.flatten())
     
-    X = scipy.hstack((t.T, R.T, Z.T))
+    X = np.hstack((t.T, R.T, Z.T))
     
     p.shot = shot
     if efit_tree is None:
@@ -1023,9 +1023,9 @@ def neCTS(shot, abscissa='RZ', t_min=None, t_max=None, electrons=None,
     p.add_data(X, ne, err_y=err_ne, channels={1: channels, 2: channels})
     
     if t_min is not None:
-        p.remove_points(scipy.asarray(p.X[:, 0]).flatten() < t_min)
+        p.remove_points(np.asarray(p.X[:, 0]).flatten() < t_min)
     if t_max is not None:
-        p.remove_points(scipy.asarray(p.X[:, 0]).flatten() > t_max)
+        p.remove_points(np.asarray(p.X[:, 0]).flatten() > t_max)
     p.convert_abscissa(abscissa)
     
     if remove_edge:
@@ -1144,21 +1144,21 @@ def TeETS(shot, abscissa='RZ', t_min=None, t_max=None, electrons=None,
     
     Z_CTS = electrons.getNode(r'yag_edgets.data:fiber_z').data() + Z_shift
     R_CTS = (electrons.getNode(r'yag.results.param:r').data() *
-             scipy.ones_like(Z_CTS))
+             np.ones_like(Z_CTS))
     channels = list(range(0, len(Z_CTS)))
     
-    t_grid, Z_grid = scipy.meshgrid(t_Te_TS, Z_CTS)
-    t_grid, R_grid = scipy.meshgrid(t_Te_TS, R_CTS)
-    t_grid, channel_grid = scipy.meshgrid(t_Te_TS, channels)
+    t_grid, Z_grid = np.meshgrid(t_Te_TS, Z_CTS)
+    t_grid, R_grid = np.meshgrid(t_Te_TS, R_CTS)
+    t_grid, channel_grid = np.meshgrid(t_Te_TS, channels)
     
     Te = Te_TS.flatten()
     err_Te = dev_Te_TS.flatten()
-    Z = scipy.atleast_2d(Z_grid.flatten())
-    R = scipy.atleast_2d(R_grid.flatten())
+    Z = np.atleast_2d(Z_grid.flatten())
+    R = np.atleast_2d(R_grid.flatten())
     channels = channel_grid.flatten()
-    t = scipy.atleast_2d(t_grid.flatten())
+    t = np.atleast_2d(t_grid.flatten())
     
-    X = scipy.hstack((t.T, R.T, Z.T))
+    X = np.hstack((t.T, R.T, Z.T))
     
     p.shot = shot
     if efit_tree is None:
@@ -1170,9 +1170,9 @@ def TeETS(shot, abscissa='RZ', t_min=None, t_max=None, electrons=None,
     p.add_data(X, Te, err_y=err_Te, channels={1: channels, 2: channels})
     
     if t_min is not None:
-        p.remove_points(scipy.asarray(p.X[:, 0]).flatten() < t_min)
+        p.remove_points(np.asarray(p.X[:, 0]).flatten() < t_min)
     if t_max is not None:
-        p.remove_points(scipy.asarray(p.X[:, 0]).flatten() > t_max)
+        p.remove_points(np.asarray(p.X[:, 0]).flatten() > t_max)
     p.convert_abscissa(abscissa)
     
     if remove_edge:
@@ -1229,7 +1229,7 @@ def TeCTS(shot, abscissa='RZ', t_min=None, t_max=None, electrons=None,
 
     t_Te_TS = N_Te_TS.dim_of().data()
     if (shot > 1030000000) & (shot < 1040000000):
-        Te_TS = scipy.concatenate((N_Te_TS.data(), N_Te_TS_old.data()))
+        Te_TS = np.concatenate((N_Te_TS.data(), N_Te_TS_old.data()))
     else:
         Te_TS = N_Te_TS.data()
 
@@ -1248,28 +1248,28 @@ def TeCTS(shot, abscissa='RZ', t_min=None, t_max=None, electrons=None,
         N_Z_CTS = electrons.getNode(r'yag.results.global.profile.z_sorted')
 
     if (shot > 1030000000) & (shot < 1040000000):
-        dev_Te_TS = scipy.concatenate((N_dev_Te_TS.data(), N_dev_Te_TS_old.data()))
-        Z_CTS = scipy.concatenate((N_Z_CTS.data() + Z_shift, N_Z_CTS_old.data() + Z_shift))
+        dev_Te_TS = np.concatenate((N_dev_Te_TS.data(), N_dev_Te_TS_old.data()))
+        Z_CTS = np.concatenate((N_Z_CTS.data() + Z_shift, N_Z_CTS_old.data() + Z_shift))
     else:
         dev_Te_TS = N_dev_Te_TS.data()
         Z_CTS = N_Z_CTS.data() + Z_shift
 
     R_CTS = (electrons.getNode(r'yag.results.param:r').data() *
-             scipy.ones_like(Z_CTS))
+             np.ones_like(Z_CTS))
     channels = list(range(0, len(Z_CTS)))
  
-    t_grid, Z_grid = scipy.meshgrid(t_Te_TS, Z_CTS)
-    t_grid, R_grid = scipy.meshgrid(t_Te_TS, R_CTS)
-    t_grid, channel_grid = scipy.meshgrid(t_Te_TS, channels)
+    t_grid, Z_grid = np.meshgrid(t_Te_TS, Z_CTS)
+    t_grid, R_grid = np.meshgrid(t_Te_TS, R_CTS)
+    t_grid, channel_grid = np.meshgrid(t_Te_TS, channels)
     
     Te = Te_TS.flatten()
     err_Te = dev_Te_TS.flatten()
-    Z = scipy.atleast_2d(Z_grid.flatten())
-    R = scipy.atleast_2d(R_grid.flatten())
+    Z = np.atleast_2d(Z_grid.flatten())
+    R = np.atleast_2d(R_grid.flatten())
     channels = channel_grid.flatten()
-    t = scipy.atleast_2d(t_grid.flatten())
+    t = np.atleast_2d(t_grid.flatten())
     
-    X = scipy.hstack((t.T, R.T, Z.T))
+    X = np.hstack((t.T, R.T, Z.T))
     
     p.shot = shot
     if efit_tree is None:
@@ -1281,9 +1281,9 @@ def TeCTS(shot, abscissa='RZ', t_min=None, t_max=None, electrons=None,
     p.add_data(X, Te, err_y=err_Te, channels={1: channels, 2: channels})
     
     if t_min is not None:
-        p.remove_points(scipy.asarray(p.X[:, 0]).flatten() < t_min)
+        p.remove_points(np.asarray(p.X[:, 0]).flatten() < t_min)
     if t_max is not None:
-        p.remove_points(scipy.asarray(p.X[:, 0]).flatten() > t_max)
+        p.remove_points(np.asarray(p.X[:, 0]).flatten() > t_max)
     p.convert_abscissa(abscissa)
     
     if remove_edge:
@@ -2044,7 +2044,7 @@ class Equilibrium(object):
         
         if origin.startswith('sqrt'):
             args = list(args)
-            args[0] = scipy.asarray(args[0])**2
+            args[0] = np.asarray(args[0])**2
             origin = origin[4:]
         
         if destination.startswith('sqrt'):
@@ -2182,7 +2182,7 @@ class Equilibrium(object):
         )
         
         if self._tricubic:
-            out_vals = scipy.reshape(
+            out_vals = np.reshape(
                 self._getFluxTriSpline().ev(t, Z, R),
                 original_shape
             )
@@ -2192,19 +2192,19 @@ class Equilibrium(object):
                 if single_val:
                     out_vals = out_vals[0]
                 else:
-                    out_vals = scipy.reshape(out_vals, original_shape)
+                    out_vals = np.reshape(out_vals, original_shape)
             elif each_t:
-                out_vals = scipy.zeros(
-                    scipy.concatenate(([len(time_idxs),], original_shape))
+                out_vals = np.zeros(
+                    np.concatenate(([len(time_idxs),], original_shape))
                 )
                 for idx, t_idx in enumerate(time_idxs):
                     out_vals[idx] = self._getFluxBiSpline(t_idx).ev(Z, R).reshape(original_shape)
             else:
-                out_vals = scipy.zeros_like(t, dtype=float)
+                out_vals = np.zeros_like(t, dtype=float)
                 for t_idx in unique_idxs:
                     t_mask = (time_idxs == t_idx)
                     out_vals[t_mask] = self._getFluxBiSpline(t_idx).ev(Z[t_mask], R[t_mask])
-                out_vals = scipy.reshape(out_vals, original_shape)
+                out_vals = np.reshape(out_vals, original_shape)
         
         # Correct for current sign:
         out_vals = -1.0 * out_vals * self.getCurrentSign()
@@ -2349,8 +2349,8 @@ class Equilibrium(object):
             if not blob[-3]:
                 if each_t:
                     for k in range(0, len(blob[-1])):
-                        psi_boundary = scipy.expand_dims(psi_boundary, -1)
-                        psi_0 = scipy.expand_dims(psi_0, -1)
+                        psi_boundary = np.expand_dims(psi_boundary, -1)
+                        psi_0 = np.expand_dims(psi_0, -1)
                 else:
                     psi_boundary = psi_boundary.reshape(blob[-1])
                     psi_0 = psi_0.reshape(blob[-1])
@@ -2362,8 +2362,8 @@ class Equilibrium(object):
                 if psi_norm < 0.0:
                     psi_norm = 0.0
             else:
-                scipy.place(psi_norm, psi_norm < 0, 0)
-            out = scipy.sqrt(psi_norm)
+                np.place(psi_norm, psi_norm < 0, 0)
+            out = np.sqrt(psi_norm)
         else:
             out = psi_norm
         
@@ -2754,22 +2754,22 @@ class Equilibrium(object):
                     # we only need to make it have the same shape as R_mid. Note
                     # that ones_like appears to be clever enough to handle the case
                     # of a scalar R_mid.
-                    Z_mid = Z_mid * scipy.ones_like(R_mid, dtype=float)
+                    Z_mid = Z_mid * np.ones_like(R_mid, dtype=float)
                 else:
                     # For multiple t, we need to repeat R_mid for every t, then
                     # repeat the corresponding Z_mid that many times for each such
                     # entry.
-                    t = scipy.asarray(t)
+                    t = np.asarray(t)
                     if t.ndim != 1:
                         raise ValueError("rmid2rho: When using the each_t keyword, "
                                          "t must have only one dimension.")
-                    R_mid = scipy.tile(
+                    R_mid = np.tile(
                         R_mid,
-                        scipy.concatenate(([len(t),], scipy.ones_like(scipy.shape(R_mid), dtype=float)))
+                        np.concatenate(([len(t),], np.ones_like(np.shape(R_mid), dtype=float)))
                     )
                     # TODO: Is there a clever way to do this without a loop?
-                    Z_mid_temp = scipy.ones_like(R_mid, dtype=float)
-                    t_temp = scipy.ones_like(R_mid, dtype=float)
+                    Z_mid_temp = np.ones_like(R_mid, dtype=float)
+                    t_temp = np.ones_like(R_mid, dtype=float)
                     for k in range(0, len(Z_mid)):
                         Z_mid_temp[k] *= Z_mid[k]
                         t_temp[k] *= t[k]
@@ -3243,10 +3243,10 @@ class Equilibrium(object):
                     if single_val:
                         quan_norm = quan_norm[0]
                     else:
-                        quan_norm = scipy.reshape(quan_norm, original_shape)
+                        quan_norm = np.reshape(quan_norm, original_shape)
                 elif each_t:
-                    quan_norm = scipy.zeros(
-                        scipy.concatenate(([len(time_idxs),], original_shape))
+                    quan_norm = np.zeros(
+                        np.concatenate(([len(time_idxs),], original_shape))
                     )
                     for idx, t_idx in enumerate(time_idxs):
                         if convert_roa:
@@ -3260,7 +3260,7 @@ class Equilibrium(object):
                 else:
                     if convert_roa:
                         psi_norm = self._roa2rmid(psi_norm, time_idxs)
-                    quan_norm = scipy.zeros_like(t, dtype=float)
+                    quan_norm = np.zeros_like(t, dtype=float)
                     for t_idx in unique_idxs:
                         t_mask = (time_idxs == t_idx)
                         tmp = spline_func(t_idx, k=k)(psi_norm[t_mask])
@@ -3273,8 +3273,8 @@ class Equilibrium(object):
                     if quan_norm < 0.0:
                         quan_norm = 0.0
                 else:
-                    scipy.place(quan_norm, quan_norm < 0, 0.0)
-                quan_norm = scipy.sqrt(quan_norm)
+                    np.place(quan_norm, quan_norm < 0, 0.0)
+                quan_norm = np.sqrt(quan_norm)
             
             if return_t:
                 if self._tricubic:
@@ -3313,10 +3313,10 @@ class Equilibrium(object):
                     if single_val:
                         quan_norm = quan_norm[0]
                     else:
-                        quan_norm = scipy.reshape(quan_norm, original_shape)
+                        quan_norm = np.reshape(quan_norm, original_shape)
                 elif each_t:
-                    quan_norm = scipy.zeros(
-                        scipy.concatenate(([len(time_idxs),], original_shape))
+                    quan_norm = np.zeros(
+                        np.concatenate(([len(time_idxs),], original_shape))
                     )
                     for idx, t_idx in enumerate(time_idxs):
                         tmp = spline_func(t_idx, k=k)(psi_norm[idx].reshape(-1))
@@ -3324,7 +3324,7 @@ class Equilibrium(object):
                             tmp = self._rmid2roa(tmp, t_idx)
                         quan_norm[idx] = tmp.reshape(original_shape)
                 else:
-                    quan_norm = scipy.zeros_like(time_idxs, dtype=float)
+                    quan_norm = np.zeros_like(time_idxs, dtype=float)
                     for t_idx in unique_idxs:
                         t_mask = (time_idxs == t_idx)
                         tmp = spline_func(t_idx, k=k)(psi_norm_flat[t_mask])
@@ -3338,8 +3338,8 @@ class Equilibrium(object):
                     if quan_norm < 0:
                         quan_norm = 0.0
                 else:
-                    scipy.place(quan_norm, quan_norm < 0, 0.0)
-                quan_norm = scipy.sqrt(quan_norm)
+                    np.place(quan_norm, quan_norm < 0, 0.0)
+                quan_norm = np.sqrt(quan_norm)
             
             if return_t:
                 return quan_norm, blob
@@ -3387,7 +3387,7 @@ class Equilibrium(object):
                 # core. The bivariate spline seems to be a little more robust
                 # in this respect.
                 resample_factor = 3
-                R_grid = scipy.linspace(
+                R_grid = np.linspace(
                     self.getMagR(length_unit='m')[idx],
                     self.getRGrid(length_unit='m')[-1],
                     resample_factor * len(self.getRGrid(length_unit='m'))
@@ -3395,14 +3395,14 @@ class Equilibrium(object):
                 
                 psi_norm_on_grid = self.rz2psinorm(
                     R_grid,
-                    self.getMagZ(length_unit='m')[idx] * scipy.ones(R_grid.shape),
+                    self.getMagZ(length_unit='m')[idx] * np.ones(R_grid.shape),
                     self.getTimeBase()[idx]
                 )
                 # Correct for the slight issues at the magnetic axis:
                 psi_norm_on_grid[0] = 0.0
                 # Find if it ever goes non-monotonic: psinorm is assumed to be
                 # strictly INCREASING from the magnetic axis out.
-                decr_idx, = scipy.where((psi_norm_on_grid[1:] - psi_norm_on_grid[:-1]) < 0)
+                decr_idx, = np.where((psi_norm_on_grid[1:] - psi_norm_on_grid[:-1]) < 0)
                 if len(decr_idx) > 0:
                     psi_norm_on_grid = psi_norm_on_grid[:decr_idx[0] + 1]
                     R_grid = R_grid[:decr_idx[0] + 1]
@@ -3422,17 +3422,17 @@ class Equilibrium(object):
                 resample_factor = 3 * len(self.getRGrid(length_unit='m'))
                 
                 # generate timebase and R_grid through a meshgrid
-                t, R_grid = scipy.meshgrid(
+                t, R_grid = np.meshgrid(
                     self.getTimeBase(),
-                    scipy.zeros((resample_factor,))
+                    np.zeros((resample_factor,))
                 )
-                Z_grid = scipy.dot(
-                    scipy.ones((resample_factor, 1)),
-                    scipy.atleast_2d(self.getMagZ(length_unit='m'))
+                Z_grid = np.dot(
+                    np.ones((resample_factor, 1)),
+                    np.atleast_2d(self.getMagZ(length_unit='m'))
                 )
                 
-                for idx in scipy.arange(self.getTimeBase().size):
-                    R_grid[:, idx] = scipy.linspace(
+                for idx in np.arange(self.getTimeBase().size):
+                    R_grid[:, idx] = np.linspace(
                         self.getMagR(length_unit='m')[idx],
                         self.getRGrid(length_unit='m')[-1],
                         resample_factor
@@ -3544,9 +3544,9 @@ class Equilibrium(object):
         
         # Get everything into sensical datatypes. Must force it to be float to
         # keep scipy.interpolate happy.
-        R = scipy.asarray(R, dtype=float)
-        Z = scipy.asarray(Z, dtype=float)
-        t = scipy.asarray(t, dtype=float)
+        R = np.asarray(R, dtype=float)
+        Z = np.asarray(Z, dtype=float)
+        t = np.asarray(t, dtype=float)
         single_time = (t.ndim == 0)
         single_val = (R.ndim == 0) and (Z.ndim == 0)
         
@@ -3564,7 +3564,7 @@ class Equilibrium(object):
                     "_processRZt: When using the make_grid keyword, the number "
                     "of dimensions of R and Z must both be one!"
                 )
-            R, Z = scipy.meshgrid(R, Z)
+            R, Z = np.meshgrid(R, Z)
         else:
             if R.shape != Z.shape:
                 raise ValueError(
@@ -3597,34 +3597,34 @@ class Equilibrium(object):
                 # Handle bug in older scipy:
                 if R.ndim == 0:
                     if not good_points:
-                        R = scipy.nan
+                        R = np.nan
                 else:
-                    scipy.place(R, ~good_points, scipy.nan)
+                    np.place(R, ~good_points, np.nan)
                 if Z.ndim == 0:
                     if not good_points:
-                        Z = scipy.nan
+                        Z = np.nan
                 else:
-                    scipy.place(Z, ~good_points, scipy.nan)
+                    np.place(Z, ~good_points, np.nan)
         
         if self._tricubic:
             # When using tricubic spline interpolation, the arrays must be
             # replicated when using the each_t keyword.
             if single_time:
-                t = t * scipy.ones_like(R, dtype=float)
+                t = t * np.ones_like(R, dtype=float)
             elif each_t:
-                R = scipy.tile(R, [len(t),] + [1,] * R.ndim)
-                Z = scipy.tile(Z, [len(t),] + [1,] * Z.ndim)
-                t = t[scipy.indices(R.shape)[0]]
+                R = np.tile(R, [len(t),] + [1,] * R.ndim)
+                Z = np.tile(Z, [len(t),] + [1,] * Z.ndim)
+                t = t[np.indices(R.shape)[0]]
             time_idxs = None
             unique_idxs = None
-            t = scipy.reshape(t, -1)
+            t = np.reshape(t, -1)
         else:
-            t = scipy.reshape(t, -1)
+            t = np.reshape(t, -1)
             timebase = self.getTimeBase()
             # Get nearest-neighbor points:
             time_idxs = self._getNearestIdx(t, timebase)
             # Check errors and warn if needed:
-            t_errs = scipy.absolute(t - timebase[time_idxs])
+            t_errs = np.absolute(t - timebase[time_idxs])
 
             # FS: comment this out to avoid known warning
             # Assume a constant sampling rate to save time:
@@ -3637,13 +3637,13 @@ class Equilibrium(object):
             #        RuntimeWarning
             #    )
             if compute_unique and not single_time and not each_t:
-                unique_idxs = scipy.unique(time_idxs)
+                unique_idxs = np.unique(time_idxs)
             else:
                 unique_idxs = None
         
         original_shape = R.shape
-        R = scipy.reshape(R, -1)
-        Z = scipy.reshape(Z, -1)
+        R = np.reshape(R, -1)
+        Z = np.reshape(Z, -1)
         
         return R, Z, t, time_idxs, unique_idxs, single_time, single_val, original_shape
 
@@ -3669,14 +3669,14 @@ class Equilibrium(object):
         # corresponding type.
         if not self._monotonic:
             try:
-                return scipy.array([(scipy.absolute(a - val)).argmin() for val in v])
+                return np.array([(np.absolute(a - val)).argmin() for val in v])
             except TypeError:
-                return (scipy.absolute(a - v)).argmin()
+                return (np.absolute(a - v)).argmin()
         else:
             try:
-                return scipy.digitize(v, old_div((a[1:] + a[:-1]), 2.0))
+                return np.digitize(v, old_div((a[1:] + a[:-1]), 2.0))
             except ValueError:
-                return scipy.digitize(scipy.atleast_1d(v), old_div((a[1:] + a[:-1]), 2.0)).reshape(())
+                return np.digitize(np.atleast_1d(v), old_div((a[1:] + a[:-1]), 2.0)).reshape(())
 
     def _checkRZ(self, R, Z):
         """Checks whether or not the passed arrays of (R, Z) are within the bounds of the reconstruction data.
@@ -3705,8 +3705,8 @@ class Equilibrium(object):
                        (Z >= self.getZGrid(length_unit='m')[0]))
         # Gracefully handle single-value versus array inputs, returning in the
         # corresponding type.
-        num_good = scipy.sum(good_points)
-        test = scipy.array(R)
+        num_good = np.sum(good_points)
+        test = np.array(R)
         if len(test.shape) > 0:
             num_pts = test.size
         else:
@@ -3874,7 +3874,7 @@ class Equilibrium(object):
         
         if self._tricubic:
             # TODO: This almost certainly isn't implemented!
-            out_vals = scipy.reshape(
+            out_vals = np.reshape(
                 1.0 / R * self._getFluxTriSpline().ev(t, Z, R, dx=1, dy=0, dz=0),
                 original_shape
             )
@@ -3884,22 +3884,22 @@ class Equilibrium(object):
                 if single_val:
                     out_vals = out_vals[0]
                 else:
-                    out_vals = scipy.reshape(out_vals, original_shape)
+                    out_vals = np.reshape(out_vals, original_shape)
             elif each_t:
-                out_vals = scipy.zeros(
-                    scipy.concatenate(([len(time_idxs),], original_shape))
+                out_vals = np.zeros(
+                    np.concatenate(([len(time_idxs),], original_shape))
                 )
                 for idx, t_idx in enumerate(time_idxs):
-                    out_vals[idx] = scipy.reshape(
+                    out_vals[idx] = np.reshape(
                         1.0 / R * self._getFluxBiSpline(t_idx).ev(Z, R, dx=0, dy=1),
                         original_shape
                     )
             else:
-                out_vals = scipy.zeros_like(t, dtype=float)
+                out_vals = np.zeros_like(t, dtype=float)
                 for t_idx in unique_idxs:
                     t_mask = (time_idxs == t_idx)
                     out_vals[t_mask] = 1.0 / R[t_mask] * self._getFluxBiSpline(t_idx).ev(Z[t_mask], R[t_mask], dx=0, dy=1)
-                out_vals = scipy.reshape(out_vals, original_shape)
+                out_vals = np.reshape(out_vals, original_shape)
         
         # Correct for current sign:
         out_vals = -1.0 * out_vals * self.getCurrentSign()
@@ -4034,7 +4034,7 @@ class Equilibrium(object):
         
         # This will have NaN anywhere outside of the LCFS. Only handle if we
         # we need to.
-        if scipy.isnan(B_T).any():
+        if np.isnan(B_T).any():
             warnings.warn(
                 "Flux function F not provided outside of LCFS, assuming field "
                 "goes like 1/R there to compute BT! This may be inaccurate!",
@@ -4050,33 +4050,33 @@ class Equilibrium(object):
             )
             if self._tricubic:
                 B_T = B_T.ravel()
-                mask = scipy.isnan(B_T)
+                mask = np.isnan(B_T)
                 B_T[mask] = self.getBtVacSpline()(t) * self.getMagRSpline()(t) / R[mask]
-                B_T = scipy.reshape(B_T, original_shape)
+                B_T = np.reshape(B_T, original_shape)
             else:
                 if single_time:
                     B_T = B_T.ravel()
-                    mask = scipy.isnan(B_T)
+                    mask = np.isnan(B_T)
                     B_T[mask] = self.getBtVac()[time_idxs] * self.getMagR()[time_idxs] / R[mask]
                     if single_val:
                         B_T = B_T[0]
                     else:
-                        B_T = scipy.reshape(B_T, original_shape)
+                        B_T = np.reshape(B_T, original_shape)
                 elif kwargs.get('each_t', True):
                     for idx, t_idx in enumerate(time_idxs):
                         tmp_out = B_T[idx].ravel()
-                        mask = scipy.isnan(tmp_out)
+                        mask = np.isnan(tmp_out)
                         tmp_out[mask] = self.getBtVac()[t_idx] * self.getMagR()[t_idx] / R[mask]
-                        B_T[idx] = scipy.reshape(tmp_out, original_shape)
+                        B_T[idx] = np.reshape(tmp_out, original_shape)
                 else:
                     B_T = B_T.ravel()
                     for t_idx in unique_idxs:
                         t_mask = (time_idxs == t_idx)
                         tmp_out = B_T[t_mask]
-                        mask = scipy.isnan(tmp_out)
+                        mask = np.isnan(tmp_out)
                         tmp_out[mask] = self.getBtVac()[t_idx] * self.getMagR()[t_idx] / R[t_mask][mask]
                         B_T[t_mask] = tmp_out
-                    B_T = scipy.reshape(B_T, original_shape)
+                    B_T = np.reshape(B_T, original_shape)
         
         if return_t:
             return unit_factor * B_T, blob
@@ -4348,7 +4348,7 @@ class Equilibrium(object):
             except KeyError:
                 F = self.getF()[idx]
                 spline = UnivariateInterpolator(
-                    scipy.linspace(0.0, 1.0, len(F)),
+                    np.linspace(0.0, 1.0, len(F)),
                     F,
                     k=k
                 )
@@ -4364,7 +4364,7 @@ class Equilibrium(object):
                 F = self.getF()
                 self._FSpline = RectBivariateSpline(
                     self.getTimeBase(),
-                    scipy.linspace(0.0, 1.0, F.shape[1]),
+                    np.linspace(0.0, 1.0, F.shape[1]),
                     F,
                     bounds_error=False,
                     s=0
@@ -4413,7 +4413,7 @@ class Equilibrium(object):
                 # flux grid to avoid 1d interpolation problems in the core. The
                 # bivariate spline seems to be a little more robust in this respect.
                 resample_factor = 3
-                R_grid = scipy.linspace(
+                R_grid = np.linspace(
                     # self.getMagR(length_unit='m')[idx],
                     self.getRGrid(length_unit='m')[0],
                     self.getRGrid(length_unit='m')[-1],
@@ -4422,7 +4422,7 @@ class Equilibrium(object):
                 
                 psi_norm_on_grid = self.rz2psinorm(
                     R_grid,
-                    self.getMagZ(length_unit='m')[idx] * scipy.ones(R_grid.shape),
+                    self.getMagZ(length_unit='m')[idx] * np.ones(R_grid.shape),
                     self.getTimeBase()[idx]
                 )
                 
@@ -4441,18 +4441,18 @@ class Equilibrium(object):
                 resample_factor = 3 * len(self.getRGrid(length_unit='m'))
                 
                 #generate timebase and R_grid through a meshgrid
-                t, R_grid = scipy.meshgrid(
+                t, R_grid = np.meshgrid(
                     self.getTimeBase(),
-                    scipy.zeros((resample_factor,))
+                    np.zeros((resample_factor,))
                 )
-                Z_grid = scipy.dot(
-                    scipy.ones((resample_factor, 1)),
-                    scipy.atleast_2d(self.getMagZ(length_unit='m'))
+                Z_grid = np.dot(
+                    np.ones((resample_factor, 1)),
+                    np.atleast_2d(self.getMagZ(length_unit='m'))
                 )
                 
-                for idx in scipy.arange(self.getTimeBase().size):
+                for idx in np.arange(self.getTimeBase().size):
                     # TODO: This can be done much more efficiently!
-                    R_grid[:, idx] = scipy.linspace(
+                    R_grid[:, idx] = np.linspace(
                         self.getRGrid(length_unit='m')[0],
                         self.getRGrid(length_unit='m')[-1],
                         resample_factor
@@ -4867,7 +4867,7 @@ class EFITTree(Equilibrium):
             currentSign (Integer): 1 for positive-direction current, -1 for negative.
         """
         if self._currentSign is None:
-            self._currentSign = 1 if scipy.mean(self.getIpMeas()) > 1e5 else -1
+            self._currentSign = 1 if np.mean(self.getIpMeas()) > 1e5 else -1
         return self._currentSign
 
     def getIpMeas(self):
@@ -5050,7 +5050,7 @@ class BivariateInterpolator(object):
     """
     def __init__(self, x, y, z):
         self._ct_interp = scipy.interpolate.CloughTocher2DInterpolator(
-            scipy.hstack((scipy.atleast_2d(x).T, scipy.atleast_2d(y).T)),
+            np.hstack((np.atleast_2d(x).T, np.atleast_2d(y).T)),
             z
         )
 

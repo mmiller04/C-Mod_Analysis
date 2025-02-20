@@ -13,9 +13,13 @@ import pickle as pkl
 from scipy.interpolate import interp1d, RectBivariateSpline, UnivariateSpline, splev, splrep
 from scipy.optimize import curve_fit
 from cmod_tools import get_cmod_kin_profs
-import aurora
 from IPython import embed
 from scipy import stats
+
+try:
+    import aurora
+except:
+    aurora = None
 
 # from this repo
 import data_access as da
@@ -509,7 +513,7 @@ if __name__=='__main__':
 
     ##### SAVE SINGLE SHOT RESULTS #####
 
-    output = False # should be put in as an argument into run
+    output = True # should be put in as an argument into run
 
     if output:
 
@@ -519,18 +523,37 @@ if __name__=='__main__':
 
         # store profiles in a pickle file (warning: changing this data structure will break things)
         fit = res['fit']
-        out2 = [fit['rhop'],fit['r/a'],fit['R'],
-                fit['ne'],fit['ne_unc'],fit['Te'],fit['Te_unc'],
-                fit['grad_ne'], fit['grad_ne_unc'], fit['grad_Te'], fit['grad_Te_unc']]
+        out2 = {
+            'rhop': fit['rhop'],
+            #'r/a': fit['r/a'],
+            'R': fit['R'],
+            'ne': fit['ne'],
+            'ne_unc': fit['ne_unc'],
+            'Te': fit['Te'],
+            'Te_unc': fit['Te_unc'],
+            'grad_ne': fit['grad_ne'],
+            'grad_ne_unc': fit['grad_ne_unc'],
+            'grad_Te': fit['grad_Te'],
+            'grad_Te_unc': fit['grad_Te_unc'],
+        }
             
         with open(f'Dicts/ts_{shot}_{tmin_ms}_{tmax_ms}.pkl','wb') as f:
             pkl.dump(out2,f)
 
         # store raw data as well
         raw = res['raw']
-        out3 = [raw['rhop'],raw['r/a'],raw['R'],raw['nn'],
-                raw['ne_rhop'], raw['ne'],raw['ne_unc'],
-                raw['Te_rhop'], raw['Te'],raw['Te_unc']]
+        out3 = {
+            'rhop': raw['rhop'],
+            #'r/a': raw['r/a'],
+            'R': raw['R'],
+            #'nn': raw['nn'],
+            'ne_rhop': raw['ne_rhop'],
+            'ne': raw['ne'],
+            'ne_unc': raw['ne_unc'],
+            'Te_rhop': raw['Te_rhop'],
+            'Te': raw['Te'],
+            'Te_unc': raw['Te_unc'],
+        }
 
         with open(f'Dicts/ts_raw_{shot}_{tmin_ms}_{tmax_ms}.pkl','wb') as f:
             pkl.dump(out3,f)

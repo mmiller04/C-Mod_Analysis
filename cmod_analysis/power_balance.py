@@ -8,7 +8,6 @@ import pickle as pkl, os
 import cmod_tools
 
 from scipy.constants import Boltzmann as kB, e as q_electron
-import aurora
 
 # from this repo
 import data_access as da
@@ -70,6 +69,7 @@ def Teu_2pt_model(shot,tmin,tmax, lambdaq_opt=1, rhop_vec=None, ne=None, Te=None
     #     p_Pa_vol_avg = 2./3. * W_mhd / vol[-1]
 
     # elif pressure_opt==2:
+    #     import aurora
     #     # find volume average within LCF from ne and Te profiles
     #     p_Pa = 2 * (ne*1e20) * (Te*1e3*q_electron)  # taking pe=pi
     #     indLCFS = np.argmin(np.abs(rhop_vec-1.0))
